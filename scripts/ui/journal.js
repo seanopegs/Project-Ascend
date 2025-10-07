@@ -12,6 +12,10 @@ const TITLE_ID = "journalDialogTitle";
 const BODY_ID = "journalDialogBody";
 
 export function initializeJournal(button, panel, provider) {
+  if (!button || !panel) {
+    return;
+  }
+
   buttonRef = button;
   panelRef = panel;
   providerRef = provider;
@@ -61,11 +65,7 @@ export function initializeJournal(button, panel, provider) {
   updateVisibility();
 
   buttonRef.addEventListener("click", () => {
-    isOpen = !isOpen;
-    updateVisibility();
-    if (isOpen) {
-      renderEntries();
-    }
+    toggleJournal();
   });
 }
 
@@ -80,13 +80,25 @@ function updateVisibility() {
   if (!panelRef || !buttonRef) return;
 
   panelRef.hidden = !isOpen;
-  panelRef.setAttribute("aria-modal", String(isOpen));
-  buttonRef.setAttribute("aria-expanded", String(isOpen));
+  if (isOpen) {
+    panelRef.removeAttribute("hidden");
+  } else if (!panelRef.hasAttribute("hidden")) {
+    panelRef.setAttribute("hidden", "");
+  }
+
+  panelRef.setAttribute("aria-modal", isOpen ? "true" : "false");
+  panelRef.setAttribute("aria-hidden", isOpen ? "false" : "true");
+  panelRef.dataset.open = isOpen ? "true" : "false";
+
+  const expanded = isOpen ? "true" : "false";
+  buttonRef.setAttribute("aria-expanded", expanded);
+  buttonRef.setAttribute("aria-pressed", expanded);
   buttonRef.textContent = isOpen ? closeLabel : openLabel;
 
   if (isOpen) {
     previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     document.body.classList.add("modal-open");
+    renderEntries();
     window.requestAnimationFrame(() => {
       if (closeButtonRef) {
         closeButtonRef.focus();
@@ -146,6 +158,18 @@ export function refreshJournal() {
 
 export function closeJournal() {
   if (!isOpen) return;
-  isOpen = false;
+  toggleJournal(false);
+}
+
+function toggleJournal(forceState) {
+  const nextState = typeof forceState === "boolean" ? forceState : !isOpen;
+  if (nextState === isOpen) {
+    if (isOpen) {
+      renderEntries();
+    }
+    return;
+  }
+
+  isOpen = nextState;
   updateVisibility();
 }

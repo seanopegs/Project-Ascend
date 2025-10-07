@@ -46,15 +46,22 @@ export function initializeGame() {
   journalPanel = document.getElementById("journalPanel");
   miniMapContainer = document.getElementById("miniMap");
 
+  if (toggleStatsButton && statsElement) {
+    toggleStatsButton.setAttribute("aria-controls", statsElement.id);
+    statsPanelVisible = !statsElement.hasAttribute("hidden");
+  }
+
   buildMetadata();
   initializeStatsUI(statsElement, stats);
   initializeStatusPanel(statusMetricsElement, worldState);
   initializeMiniMap(miniMapContainer);
   initializeJournal(journalButton, journalPanel, () => buildJournalEntries());
 
-  toggleStatsButton.addEventListener("click", () => {
-    setStatsPanelVisibility(!statsPanelVisible);
-  });
+  if (toggleStatsButton && statsElement) {
+    toggleStatsButton.addEventListener("click", () => {
+      setStatsPanelVisibility(!statsPanelVisible);
+    });
+  }
 
   restartButton.addEventListener("click", () => {
     resetGame();
@@ -881,14 +888,21 @@ function setStatsPanelVisibility(visible) {
   if (statsPanelVisible) {
     statsElement.hidden = false;
     statsElement.removeAttribute("hidden");
+    statsElement.setAttribute("aria-hidden", "false");
+    if (typeof statsElement.scrollIntoView === "function" && statsElement.isConnected) {
+      statsElement.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
   } else {
     statsElement.hidden = true;
     if (!statsElement.hasAttribute("hidden")) {
       statsElement.setAttribute("hidden", "");
     }
+    statsElement.setAttribute("aria-hidden", "true");
   }
 
-  toggleStatsButton.setAttribute("aria-expanded", statsPanelVisible ? "true" : "false");
+  const expanded = statsPanelVisible ? "true" : "false";
+  toggleStatsButton.setAttribute("aria-expanded", expanded);
+  toggleStatsButton.setAttribute("aria-pressed", expanded);
   toggleStatsButton.textContent = statsPanelVisible
     ? "Sembunyikan Stat Karakter"
     : "Tampilkan Stat Karakter";
