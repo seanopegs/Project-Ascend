@@ -941,6 +941,9 @@ var GameApp = (() => {
   var TITLE_ID = "journalDialogTitle";
   var BODY_ID = "journalDialogBody";
   function initializeJournal(button, panel, provider) {
+    if (!button || !panel) {
+      return;
+    }
     buttonRef = button;
     panelRef = panel;
     providerRef = provider;
@@ -982,11 +985,7 @@ var GameApp = (() => {
     panelRef.addEventListener("keydown", handleKeydown);
     updateVisibility();
     buttonRef.addEventListener("click", () => {
-      isOpen = !isOpen;
-      updateVisibility();
-      if (isOpen) {
-        renderEntries();
-      }
+      toggleJournal();
     });
   }
   function handleKeydown(event) {
@@ -998,12 +997,22 @@ var GameApp = (() => {
   function updateVisibility() {
     if (!panelRef || !buttonRef) return;
     panelRef.hidden = !isOpen;
-    panelRef.setAttribute("aria-modal", String(isOpen));
-    buttonRef.setAttribute("aria-expanded", String(isOpen));
+    if (isOpen) {
+      panelRef.removeAttribute("hidden");
+    } else if (!panelRef.hasAttribute("hidden")) {
+      panelRef.setAttribute("hidden", "");
+    }
+    panelRef.setAttribute("aria-modal", isOpen ? "true" : "false");
+    panelRef.setAttribute("aria-hidden", isOpen ? "false" : "true");
+    panelRef.dataset.open = isOpen ? "true" : "false";
+    const expanded = isOpen ? "true" : "false";
+    buttonRef.setAttribute("aria-expanded", expanded);
+    buttonRef.setAttribute("aria-pressed", expanded);
     buttonRef.textContent = isOpen ? closeLabel : openLabel;
     if (isOpen) {
       previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       document.body.classList.add("modal-open");
+      renderEntries();
       window.requestAnimationFrame(() => {
         if (closeButtonRef) {
           closeButtonRef.focus();
@@ -1057,7 +1066,17 @@ var GameApp = (() => {
   }
   function closeJournal() {
     if (!isOpen) return;
-    isOpen = false;
+    toggleJournal(false);
+  }
+  function toggleJournal(forceState) {
+    const nextState = typeof forceState === "boolean" ? forceState : !isOpen;
+    if (nextState === isOpen) {
+      if (isOpen) {
+        renderEntries();
+      }
+      return;
+    }
+    isOpen = nextState;
     updateVisibility();
   }
 
@@ -1151,14 +1170,20 @@ var GameApp = (() => {
     journalButton = document.getElementById("journalButton");
     journalPanel = document.getElementById("journalPanel");
     miniMapContainer = document.getElementById("miniMap");
+    if (toggleStatsButton && statsElement) {
+      toggleStatsButton.setAttribute("aria-controls", statsElement.id);
+      statsPanelVisible = !statsElement.hasAttribute("hidden");
+    }
     buildMetadata();
     initializeStatsUI(statsElement, stats);
     initializeStatusPanel(statusMetricsElement, worldState);
     initializeMiniMap(miniMapContainer);
     initializeJournal(journalButton, journalPanel, () => buildJournalEntries());
-    toggleStatsButton.addEventListener("click", () => {
-      setStatsPanelVisibility(!statsPanelVisible);
-    });
+    if (toggleStatsButton && statsElement) {
+      toggleStatsButton.addEventListener("click", () => {
+        setStatsPanelVisibility(!statsPanelVisible);
+      });
+    }
     restartButton.addEventListener("click", () => {
       resetGame();
     });
@@ -1867,13 +1892,20 @@ var GameApp = (() => {
     if (statsPanelVisible) {
       statsElement.hidden = false;
       statsElement.removeAttribute("hidden");
+      statsElement.setAttribute("aria-hidden", "false");
+      if (typeof statsElement.scrollIntoView === "function" && statsElement.isConnected) {
+        statsElement.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
     } else {
       statsElement.hidden = true;
       if (!statsElement.hasAttribute("hidden")) {
         statsElement.setAttribute("hidden", "");
       }
+      statsElement.setAttribute("aria-hidden", "true");
     }
-    toggleStatsButton.setAttribute("aria-expanded", statsPanelVisible ? "true" : "false");
+    const expanded = statsPanelVisible ? "true" : "false";
+    toggleStatsButton.setAttribute("aria-expanded", expanded);
+    toggleStatsButton.setAttribute("aria-pressed", expanded);
     toggleStatsButton.textContent = statsPanelVisible ? "Sembunyikan Stat Karakter" : "Tampilkan Stat Karakter";
   }
 
