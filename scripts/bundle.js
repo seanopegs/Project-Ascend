@@ -30,70 +30,100 @@ var GameApp = (() => {
       alias: "Kewaspadaan",
       description: "Mengukur seberapa tajam kamu membaca ancaman finansial dan peluang bantuan di sekitar.",
       max: 100,
-      initial: 45
+      initial: 45,
+      color: "#38bdf8",
+      colorStrong: "#0ea5e9",
+      colorSoft: "rgba(56, 189, 248, 0.22)"
     },
     purity: {
       displayName: "Purity",
       alias: "Integritas",
       description: "Menjaga kompas moral dan tujuan jangka panjang agar tetap lurus saat mengambil keputusan sulit.",
       max: 100,
-      initial: 55
+      initial: 55,
+      color: "#a855f7",
+      colorStrong: "#7c3aed",
+      colorSoft: "rgba(168, 85, 247, 0.22)"
     },
     physique: {
       displayName: "Physique",
       alias: "Kebugaran",
       description: "Stamina fisik untuk merawat Ayah, bekerja lembur, dan bertahan dari malam yang panjang.",
       max: 100,
-      initial: 48
+      initial: 48,
+      color: "#f97316",
+      colorStrong: "#ea580c",
+      colorSoft: "rgba(249, 115, 22, 0.22)"
     },
     willpower: {
       displayName: "Willpower",
       alias: "Tekad",
       description: "Kekuatan mental menghadapi tekanan psikologis, rasa takut, dan ancaman yang datang bertubi-tubi.",
       max: 100,
-      initial: 52
+      initial: 52,
+      color: "#facc15",
+      colorStrong: "#eab308",
+      colorSoft: "rgba(250, 204, 21, 0.22)"
     },
     beauty: {
       displayName: "Beauty",
       alias: "Performa",
       description: "Cara kamu membawa diri\u2014rapi, percaya diri, dan persuasif saat meminta dukungan orang lain.",
       max: 100,
-      initial: 46
+      initial: 46,
+      color: "#f472b6",
+      colorStrong: "#ec4899",
+      colorSoft: "rgba(244, 114, 182, 0.22)"
     },
     promiscuity: {
       displayName: "Promiscuity",
       alias: "Keluwesan Relasi",
       description: "Kemampuan menjalin jaringan dukungan lintas komunitas tanpa ragu menjelaskan kebutuhanmu.",
       max: 100,
-      initial: 35
+      initial: 35,
+      color: "#34d399",
+      colorStrong: "#10b981",
+      colorSoft: "rgba(52, 211, 153, 0.22)"
     },
     exhibitionism: {
       displayName: "Exhibitionism",
       alias: "Keberanian Tampil",
       description: "Kesiapanmu berbicara terbuka soal situasi keluarga kepada orang lain atau otoritas.",
       max: 100,
-      initial: 32
+      initial: 32,
+      color: "#60a5fa",
+      colorStrong: "#3b82f6",
+      colorSoft: "rgba(96, 165, 250, 0.22)"
     },
     deviancy: {
       displayName: "Deviancy",
       alias: "Inovasi",
       description: "Kesediaan mencoba strategi tak lazim demi menciptakan ruang aman dan solusi baru.",
       max: 100,
-      initial: 28
+      initial: 28,
+      color: "#fb7185",
+      colorStrong: "#f43f5e",
+      colorSoft: "rgba(251, 113, 133, 0.22)"
     },
     masochism: {
       displayName: "Masochism",
       alias: "Daya Tahan Tekanan",
       description: "Kemampuan menerima lelah, takut, dan malu sementara demi visi yang lebih besar untuk keluarga.",
       max: 100,
-      initial: 44
+      initial: 44,
+      color: "#f59e0b",
+      colorStrong: "#d97706",
+      colorSoft: "rgba(245, 158, 11, 0.22)"
     },
     sadism: {
       displayName: "Sadism",
       alias: "Ketegasan Menghadapi",
       description: "Kemauan menekan balik dan menetapkan batas tegas terhadap pihak yang menindas.",
       max: 100,
-      initial: 20
+      initial: 20,
+      color: "#a3e635",
+      colorStrong: "#84cc16",
+      colorSoft: "rgba(163, 230, 53, 0.22)"
     }
   };
   var statsOrder = [
@@ -707,6 +737,15 @@ var GameApp = (() => {
       const card = document.createElement("article");
       card.className = "stat-card";
       card.dataset.stat = key;
+      if (stat.color) {
+        card.style.setProperty("--stat-color", stat.color);
+      }
+      if (stat.colorStrong) {
+        card.style.setProperty("--stat-color-strong", stat.colorStrong);
+      }
+      if (stat.colorSoft) {
+        card.style.setProperty("--stat-color-soft", stat.colorSoft);
+      }
       card.tabIndex = 0;
       card.setAttribute(
         "aria-label",
@@ -914,10 +953,18 @@ var GameApp = (() => {
   ];
   var containerRef3 = null;
   var cellElements = /* @__PURE__ */ new Map();
+  var connectionElements = /* @__PURE__ */ new Map();
+  var gridRows = Math.max(...layout.map((room) => room.row));
+  var gridCols = Math.max(...layout.map((room) => room.col));
+  var GRID_UNIT = 100;
+  function buildConnectionKey(a, b) {
+    return [a, b].sort().join("::");
+  }
   function initializeMiniMap(container) {
     if (!container) {
       containerRef3 = null;
       cellElements.clear();
+      connectionElements.clear();
       return;
     }
     containerRef3 = container;
@@ -926,8 +973,13 @@ var GameApp = (() => {
     containerRef3.setAttribute("aria-label", "Denah rumah");
     const grid = document.createElement("div");
     grid.className = "mini-map-grid";
-    grid.style.setProperty("--rows", 3);
-    grid.style.setProperty("--cols", 3);
+    grid.style.setProperty("--rows", String(gridRows));
+    grid.style.setProperty("--cols", String(gridCols));
+    const overlay = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    overlay.classList.add("mini-map-connections");
+    overlay.setAttribute("viewBox", `0 0 ${gridCols * GRID_UNIT} ${gridRows * GRID_UNIT}`);
+    overlay.setAttribute("preserveAspectRatio", "xMidYMid meet");
+    connectionElements.clear();
     layout.forEach((room) => {
       const cell = document.createElement("div");
       cell.className = "mini-map-cell";
@@ -941,7 +993,36 @@ var GameApp = (() => {
       grid.appendChild(cell);
       cellElements.set(room.id, cell);
     });
+    containerRef3.appendChild(overlay);
     containerRef3.appendChild(grid);
+    const positions = /* @__PURE__ */ new Map();
+    layout.forEach((room) => {
+      positions.set(room.id, {
+        x: (room.col - 0.5) * GRID_UNIT,
+        y: (room.row - 0.5) * GRID_UNIT
+      });
+    });
+    const seen = /* @__PURE__ */ new Set();
+    Object.entries(locations).forEach(([fromId, location]) => {
+      if (!positions.has(fromId)) return;
+      (location.connections || []).forEach((targetId) => {
+        if (!positions.has(targetId)) return;
+        const key = buildConnectionKey(fromId, targetId);
+        if (seen.has(key)) return;
+        seen.add(key);
+        const start = positions.get(fromId);
+        const end = positions.get(targetId);
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("x1", String(start.x));
+        line.setAttribute("y1", String(start.y));
+        line.setAttribute("x2", String(end.x));
+        line.setAttribute("y2", String(end.y));
+        line.dataset.from = fromId;
+        line.dataset.to = targetId;
+        overlay.appendChild(line);
+        connectionElements.set(key, line);
+      });
+    });
   }
   function updateMiniMap(activeLocation) {
     if (!cellElements.size) {
@@ -954,6 +1035,15 @@ var GameApp = (() => {
       } else {
         cell.classList.remove("active");
         cell.removeAttribute("aria-current");
+      }
+    });
+    connectionElements.forEach((line) => {
+      if (!line) return;
+      const { from, to } = line.dataset;
+      if (from === activeLocation || to === activeLocation) {
+        line.classList.add("active");
+      } else {
+        line.classList.remove("active");
       }
     });
   }
@@ -1362,7 +1452,20 @@ var GameApp = (() => {
     const clock = formatTime(worldState.hour, worldState.minute);
     const calendar = formatCalendarDate(worldState);
     if (statusSummaryElement) {
-      statusSummaryElement.textContent = `Hari ${worldState.day} (${calendar}) \u2022 ${clock} \u2022 ${location?.name ?? "Lokasi tidak dikenal"}`;
+      const summaryParts = [
+        `Hari ${worldState.day} (${calendar})`,
+        clock,
+        location?.name ?? "Lokasi tidak dikenal"
+      ];
+      const collectorDeadline = describeCollectorDeadline();
+      if (collectorDeadline) {
+        summaryParts.push(collectorDeadline);
+      }
+      const loanDeadline = describeLoanDeadline();
+      if (loanDeadline) {
+        summaryParts.push(loanDeadline);
+      }
+      statusSummaryElement.textContent = summaryParts.join(" \u2022 ");
     }
   }
   function applyEffects(effects = {}) {
@@ -1457,6 +1560,8 @@ var GameApp = (() => {
     const willpower = stats.willpower.value;
     const awareness = stats.awareness.value;
     const beauty = stats.beauty.value;
+    let freshForWork = false;
+    let focusedWillpower = false;
     if (traits.has("physical") || traits.has("care")) {
       if (fatigue >= 75) {
         adjustMultiple(statusChanges, ["fatherHealth"], (value) => value * 0.65);
@@ -1478,6 +1583,7 @@ var GameApp = (() => {
       } else if (fatigue <= 35) {
         adjustChange(statusChanges, "money", (value) => value * 1.1);
         notes.push("Energi cukup membuat tempo kerjamu lebih cepat.");
+        freshForWork = true;
       }
     }
     if (traits.has("mental") || traits.has("planning") || traits.has("work")) {
@@ -1485,6 +1591,7 @@ var GameApp = (() => {
         adjustChange(statusChanges, "stress", (value) => value > 0 ? value * 0.7 : value * 1.15);
         incrementEffect(baseEffects, "willpower", 0.5);
         notes.push("Tekad tinggi membantumu tetap fokus di tengah tekanan.");
+        focusedWillpower = true;
       } else if (willpower <= 40) {
         adjustChange(statusChanges, "stress", (value) => value > 0 ? value * 1.2 : value * 0.85);
         notes.push("Tekad yang melemah membuat tekanan terasa lebih berat.");
@@ -1518,6 +1625,10 @@ var GameApp = (() => {
         adjustChange(statusChanges, "stress", (value) => value > 0 ? value * 1.1 : value * 0.85);
         notes.push("Rasa canggung sedikit mengurangi hasil interaksimu.");
       }
+    }
+    if (traits.has("work") && freshForWork && focusedWillpower) {
+      adjustChange(statusChanges, "money", (value) => value * 1.12);
+      notes.push("Tubuh segar dan tekad menyala membuat hasil lemburmu melesat.");
     }
     return { baseEffects, statusChanges, notes };
   }
@@ -1855,6 +1966,26 @@ var GameApp = (() => {
     if (storyElement && typeof storyElement.focus === "function") {
       storyElement.focus();
     }
+  }
+  function describeCollectorDeadline() {
+    if (worldState.flags.collectorUltimatum) {
+      return "Ultimatum kolektor: siapkan minimal Rp10.000.000";
+    }
+    if (worldState.flags.nextCollectorVisit) {
+      return `Tenggat kolektor: ${formatFutureSchedule(worldState.flags.nextCollectorVisit)}`;
+    }
+    if (!worldState.flags.debtCollectorKnock) {
+      return "Penagih tiba pukul 23.00";
+    }
+    return "";
+  }
+  function describeLoanDeadline() {
+    const outstanding = worldState.flags.dinaLoanOutstanding || 0;
+    const due = worldState.flags.dinaLoanDue;
+    if (outstanding > 0 && due) {
+      return `Cicilan Dina (${formatCurrency(outstanding)}): ${formatFutureSchedule(due)}`;
+    }
+    return "";
   }
   function performAction(id) {
     if (gameEnded) return;
