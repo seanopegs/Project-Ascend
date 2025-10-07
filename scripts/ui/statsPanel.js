@@ -4,6 +4,12 @@ const statElements = new Map();
 let containerRef = null;
 
 export function initializeStatsUI(container, stats) {
+  if (!container) {
+    containerRef = null;
+    statElements.clear();
+    return;
+  }
+
   containerRef = container;
   containerRef.innerHTML = "";
   statElements.clear();
@@ -59,6 +65,9 @@ export function initializeStatsUI(container, stats) {
 }
 
 export function updateStatsUI(stats) {
+  if (!statElements.size) {
+    return;
+  }
   statsOrder.forEach((key) => {
     const stat = stats[key];
     const elements = statElements.get(key);
