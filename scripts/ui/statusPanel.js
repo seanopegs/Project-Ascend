@@ -5,6 +5,12 @@ const statusElements = new Map();
 let containerRef = null;
 
 export function initializeStatusPanel(container, worldState) {
+  if (!container) {
+    containerRef = null;
+    statusElements.clear();
+    return;
+  }
+
   containerRef = container;
   containerRef.innerHTML = "";
   statusElements.clear();
@@ -52,6 +58,9 @@ export function initializeStatusPanel(container, worldState) {
 }
 
 export function updateStatusPanel(worldState) {
+  if (!statusElements.size) {
+    return;
+  }
   statusOrder.forEach((key) => {
     const meta = statusConfig[key];
     const elements = statusElements.get(key);

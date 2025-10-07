@@ -33,7 +33,41 @@ let journalPanel;
 let miniMapContainer;
 let statsPanelVisible = false;
 
+function detachUiHandlers() {
+  if (toggleStatsButton) {
+    toggleStatsButton.removeEventListener("click", handleToggleStatsClick);
+  }
+  if (restartButton) {
+    restartButton.removeEventListener("click", handleRestartClick);
+  }
+}
+
+function handleToggleStatsClick(event) {
+  event?.preventDefault?.();
+  setStatsPanelVisibility(!statsPanelVisible);
+}
+
+function handleRestartClick(event) {
+  event?.preventDefault?.();
+  resetGame();
+}
+
+function disableControl(button, message) {
+  if (!button) {
+    return;
+  }
+  button.disabled = true;
+  button.setAttribute("aria-disabled", "true");
+  button.setAttribute("aria-expanded", "false");
+  button.setAttribute("aria-pressed", "false");
+  if (message) {
+    button.title = message;
+  }
+}
+
 export function initializeGame() {
+  detachUiHandlers();
+
   statsElement = document.getElementById("stats");
   statusSummaryElement = document.getElementById("statusSummary");
   statusMetricsElement = document.getElementById("statusMetrics");
@@ -49,23 +83,37 @@ export function initializeGame() {
   if (toggleStatsButton && statsElement) {
     toggleStatsButton.setAttribute("aria-controls", statsElement.id);
     statsPanelVisible = !statsElement.hasAttribute("hidden");
+  } else if (toggleStatsButton && !statsElement) {
+    disableControl(toggleStatsButton, "Panel stat tidak ditemukan.");
   }
 
   buildMetadata();
-  initializeStatsUI(statsElement, stats);
-  initializeStatusPanel(statusMetricsElement, worldState);
-  initializeMiniMap(miniMapContainer);
-  initializeJournal(journalButton, journalPanel, () => buildJournalEntries());
 
-  if (toggleStatsButton && statsElement) {
-    toggleStatsButton.addEventListener("click", () => {
-      setStatsPanelVisibility(!statsPanelVisible);
-    });
+  if (statsElement) {
+    initializeStatsUI(statsElement, stats);
   }
 
-  restartButton.addEventListener("click", () => {
-    resetGame();
-  });
+  if (statusMetricsElement) {
+    initializeStatusPanel(statusMetricsElement, worldState);
+  }
+
+  if (miniMapContainer) {
+    initializeMiniMap(miniMapContainer);
+  }
+
+  if (journalButton && journalPanel) {
+    initializeJournal(journalButton, journalPanel, () => buildJournalEntries());
+  } else if (journalButton && !journalPanel) {
+    disableControl(journalButton, "Panel jurnal tidak ditemukan.");
+  }
+
+  if (toggleStatsButton && statsElement) {
+    toggleStatsButton.addEventListener("click", handleToggleStatsClick);
+  }
+
+  if (restartButton) {
+    restartButton.addEventListener("click", handleRestartClick);
+  }
 
   resetGame();
 }
@@ -145,9 +193,13 @@ function resetGame() {
   currentEnding = null;
   resetStats();
   updateStatusSummary();
-  updateStatusPanel(worldState);
+  if (statusMetricsElement) {
+    updateStatusPanel(worldState);
+  }
   updateMiniMap(worldState.location);
-  feedbackElement.innerHTML = "";
+  if (feedbackElement) {
+    feedbackElement.innerHTML = "";
+  }
   setStatsPanelVisibility(false);
   closeJournal();
 
@@ -160,9 +212,11 @@ function updateStatusSummary() {
   const location = locations[worldState.location];
   const clock = formatTime(worldState.hour, worldState.minute);
   const calendar = formatCalendarDate(worldState);
-  statusSummaryElement.textContent = `Hari ${worldState.day} (${calendar}) • ${clock} • ${
-    location?.name ?? "Lokasi tidak dikenal"
-  }`;
+  if (statusSummaryElement) {
+    statusSummaryElement.textContent = `Hari ${worldState.day} (${calendar}) • ${clock} • ${
+      location?.name ?? "Lokasi tidak dikenal"
+    }`;
+  }
 }
 
 function applyEffects(effects = {}) {
@@ -215,7 +269,9 @@ function applyStatusChanges(changes = {}) {
     }
   });
   if (results.length) {
-    updateStatusPanel(worldState);
+    if (statusMetricsElement) {
+      updateStatusPanel(worldState);
+    }
     updateStatusSummary();
   }
   return results;
@@ -425,7 +481,9 @@ function advanceTime(hours = 1) {
     }
   }
 
-  updateStatusPanel(worldState);
+  if (statusMetricsElement) {
+    updateStatusPanel(worldState);
+  }
   updateStatusSummary();
   return Object.entries(aggregate)
     .map(([key, amount]) => ({ key, amount: normalizeValue(amount) }))
@@ -479,7 +537,9 @@ function handleEvents() {
   });
 
   if (narratives.length) {
-    updateStatusPanel(worldState);
+    if (statusMetricsElement) {
+      updateStatusPanel(worldState);
+    }
     updateStatusSummary();
   }
 
@@ -487,6 +547,10 @@ function handleEvents() {
 }
 
 function renderChoicesForLocation(location) {
+  if (!choicesElement) {
+    return;
+  }
+
   choicesElement.innerHTML = "";
 
   const actionRefs = location.actions || [];
@@ -655,19 +719,23 @@ function getInsights() {
 
 function renderScene(narratives = [], changeRecords = []) {
   updateStatusSummary();
-  updateStatusPanel(worldState);
+  if (statusMetricsElement) {
+    updateStatusPanel(worldState);
+  }
   updateMiniMap(worldState.location);
   refreshJournal();
 
   const aggregated = aggregateChanges(changeRecords);
   const insights = getInsights();
-  renderFeedback(
-    feedbackElement,
-    aggregated,
-    insights,
-    (key) => allStatsMetadata.get(key),
-    formatChange,
-  );
+  if (feedbackElement) {
+    renderFeedback(
+      feedbackElement,
+      aggregated,
+      insights,
+      (key) => allStatsMetadata.get(key),
+      formatChange,
+    );
+  }
 
   const location = locations[worldState.location];
   const paragraphs = [];
@@ -686,22 +754,32 @@ function renderScene(narratives = [], changeRecords = []) {
     }
   });
 
-  setStoryText(storyElement, paragraphs);
+  if (storyElement) {
+    setStoryText(storyElement, paragraphs);
+  }
 
   if (gameEnded) {
-    choicesElement.innerHTML = "";
-    const endingLabel = document.createElement("p");
-    endingLabel.className = "subtitle";
-    endingLabel.textContent = currentEnding?.label ?? "Permainan Berakhir";
-    choicesElement.appendChild(endingLabel);
-    restartButton.hidden = false;
-    restartButton.focus();
+    if (choicesElement) {
+      choicesElement.innerHTML = "";
+      const endingLabel = document.createElement("p");
+      endingLabel.className = "subtitle";
+      endingLabel.textContent = currentEnding?.label ?? "Permainan Berakhir";
+      choicesElement.appendChild(endingLabel);
+    }
+    if (restartButton) {
+      restartButton.hidden = false;
+      restartButton.focus();
+    }
     return;
   }
 
   renderChoicesForLocation(location ?? { actions: [], connections: [] });
-  restartButton.hidden = true;
-  storyElement.focus();
+  if (restartButton) {
+    restartButton.hidden = true;
+  }
+  if (storyElement && typeof storyElement.focus === "function") {
+    storyElement.focus();
+  }
 }
 
 function performAction(id) {
