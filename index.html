@@ -7,29 +7,64 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <main class="game-container" aria-live="polite">
-      <header class="game-header">
-        <h1>Jalan Keluar</h1>
-        <p class="subtitle">Game cerita teks tentang bertahan di tengah lilitan utang.</p>
+    <div class="app-shell" aria-live="polite">
+      <header class="app-header">
+        <div>
+          <h1>Jalan Keluar</h1>
+          <p class="subtitle">
+            Visual novel taktis tentang bertahan dari lilitan utang sambil merawat orang tua.
+          </p>
+        </div>
+        <div class="header-meta">
+          <span class="badge">Malam 1</span>
+          <span class="badge accent">Taktik Bertahan</span>
+        </div>
       </header>
-      <section id="status" class="status" aria-label="Situasi terbaru">
-        <p id="statusSummary" class="status-summary"></p>
-        <div id="statusMetrics" class="status-metrics"></div>
-      </section>
-      <button
-        id="toggleStats"
-        class="stats-toggle"
-        type="button"
-        aria-expanded="false"
-      >
-        Tampilkan Stat Karakter
-      </button>
-      <section id="stats" class="stats-panel" hidden aria-label="Stat karakter"></section>
-      <section id="story" class="story" tabindex="0"></section>
-      <section id="feedback" class="feedback" aria-live="polite" aria-label="Perubahan terbaru"></section>
-      <section id="choices" class="choices" aria-label="Pilihan"></section>
-      <button id="restart" class="restart" type="button" hidden>Mulai Lagi</button>
-    </main>
-    <script src="script.js"></script>
+      <div class="app-layout">
+        <aside class="app-sidebar">
+          <section id="status" class="status" aria-label="Situasi terbaru">
+            <header class="section-heading">
+              <h2>Kondisi Malam Ini</h2>
+              <p id="statusSummary" class="status-summary"></p>
+            </header>
+            <div id="statusMetrics" class="status-metrics"></div>
+          </section>
+          <section class="map-panel" aria-label="Denah lokasi">
+            <header class="section-heading">
+              <h2>Denah Rumah</h2>
+              <p>Jejak ruang yang bisa kamu jelajahi malam ini.</p>
+            </header>
+            <div id="miniMap" class="mini-map"></div>
+          </section>
+          <div class="sidebar-controls">
+            <button
+              id="toggleStats"
+              class="button tertiary"
+              type="button"
+              aria-expanded="false"
+            >
+              Tampilkan Stat Karakter
+            </button>
+            <button id="journalButton" class="button tertiary" type="button" aria-expanded="false">
+              Lihat Jurnal
+            </button>
+          </div>
+          <section id="stats" class="stats-panel" hidden aria-label="Stat karakter"></section>
+          <section id="journalPanel" class="journal-panel" hidden aria-label="Jurnal masa depan"></section>
+        </aside>
+        <main class="app-main">
+          <section id="story" class="story" tabindex="0" aria-label="Narasi"></section>
+          <section
+            id="feedback"
+            class="feedback"
+            aria-live="polite"
+            aria-label="Perubahan terbaru"
+          ></section>
+          <section id="choices" class="choices" aria-label="Pilihan"></section>
+          <button id="restart" class="restart" type="button" hidden>Mulai Lagi</button>
+        </main>
+      </div>
+    </div>
+    <script type="module" src="scripts/main.js"></script>
   </body>
 </html>
