@@ -77,12 +77,6 @@ export function createFloatingWindow({ container, modal, handle }) {
     }
     event.preventDefault();
     hasCustomPosition = true;
-    if (modal.style.transform.includes("-50%")) {
-      const rect = modal.getBoundingClientRect();
-      modal.style.transform = "translate(0, 0)";
-      modal.style.left = `${rect.left}px`;
-      modal.style.top = `${rect.top}px`;
-    }
     updatePosition(event.clientX, event.clientY);
   }
 
@@ -95,7 +89,13 @@ export function createFloatingWindow({ container, modal, handle }) {
     }
     pointerId = event.pointerId;
     handle.setPointerCapture?.(pointerId);
-    const rect = modal.getBoundingClientRect();
+    let rect = modal.getBoundingClientRect();
+    if (modal.style.transform.includes("-50%")) {
+      modal.style.transform = "translate(0, 0)";
+      modal.style.left = `${rect.left}px`;
+      modal.style.top = `${rect.top}px`;
+      rect = modal.getBoundingClientRect();
+    }
     offsetX = event.clientX - rect.left;
     offsetY = event.clientY - rect.top;
     modal.dataset.dragging = "true";

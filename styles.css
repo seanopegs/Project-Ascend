@@ -715,7 +715,9 @@ body {
   z-index: 40;
 }
 
-.floating-overlay[data-open="true"] {
+.floating-overlay .floating-window,
+.floating-overlay .floating-window__handle,
+.floating-overlay .floating-window * {
   pointer-events: auto;
 }
 
