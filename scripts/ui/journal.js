@@ -1,7 +1,12 @@
+import { createFloatingWindow } from "./floatingWindow.js";
+
 let panelRef = null;
 let buttonRef = null;
 let contentRef = null;
 let closeButtonRef = null;
+let floatingController = null;
+let modalRef = null;
+let dragHandleRef = null;
 let providerRef = () => [];
 let isOpen = false;
 let previousFocus = null;
@@ -42,6 +47,8 @@ export function initializeJournal(button, panel, provider) {
   if (closeButtonRef) {
     closeButtonRef.removeEventListener("click", handleCloseButtonClick);
   }
+  floatingController?.destroy?.();
+  floatingController = null;
 
   buttonRef = button;
   panelRef = panel;
@@ -74,8 +81,16 @@ export function initializeJournal(button, panel, provider) {
     </div>
   `;
 
+  modalRef = panelRef.querySelector(".journal-modal");
+  dragHandleRef = panelRef.querySelector(".journal-modal__header");
   contentRef = panelRef.querySelector(".journal-modal__body");
   closeButtonRef = panelRef.querySelector(".journal-modal__close");
+
+  floatingController = createFloatingWindow({
+    container: panelRef,
+    modal: modalRef,
+    handle: dragHandleRef,
+  });
 
   closeButtonRef?.addEventListener("click", handleCloseButtonClick);
   panelRef.addEventListener("click", handlePanelBackgroundClick);
@@ -103,7 +118,7 @@ function updateVisibility() {
     panelRef.setAttribute("hidden", "");
   }
 
-  panelRef.setAttribute("aria-modal", isOpen ? "true" : "false");
+  panelRef.setAttribute("aria-modal", "false");
   panelRef.setAttribute("aria-hidden", isOpen ? "false" : "true");
   panelRef.dataset.open = isOpen ? "true" : "false";
 
@@ -114,7 +129,9 @@ function updateVisibility() {
 
   if (isOpen) {
     previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    document.body.classList.add("modal-open");
+    if (floatingController && !floatingController.hasCustomPosition()) {
+      floatingController.center();
+    }
     renderEntries();
     window.requestAnimationFrame(() => {
       if (closeButtonRef) {
@@ -124,7 +141,6 @@ function updateVisibility() {
       }
     });
   } else {
-    document.body.classList.remove("modal-open");
     if (previousFocus && typeof previousFocus.focus === "function") {
       previousFocus.focus();
     }
@@ -154,14 +170,44 @@ function renderEntries() {
   list.className = "journal-list";
   entries.forEach((entry) => {
     const item = document.createElement("li");
-    const title = document.createElement("h3");
-    title.textContent = entry.title;
-    const time = document.createElement("p");
-    time.className = "journal-time";
-    time.textContent = entry.time;
-    const description = document.createElement("p");
-    description.textContent = entry.description;
-    item.append(title, time, description);
+    if (entry.title) {
+      const title = document.createElement("h3");
+      title.textContent = entry.title;
+      item.appendChild(title);
+    }
+
+    if (entry.time) {
+      const time = document.createElement("p");
+      time.className = "journal-time";
+      time.textContent = entry.time;
+      item.appendChild(time);
+    }
+
+    if (entry.description) {
+      const description = document.createElement("p");
+      description.textContent = entry.description;
+      item.appendChild(description);
+    }
+
+    if (Array.isArray(entry.items) && entry.items.length) {
+      const notes = document.createElement("ul");
+      notes.className = "journal-sublist";
+      entry.items.forEach((note) => {
+        const row = document.createElement("li");
+        const noteText = document.createElement("span");
+        noteText.className = "journal-subtext";
+        noteText.textContent = note.text;
+        row.appendChild(noteText);
+        if (note.time) {
+          const noteTime = document.createElement("span");
+          noteTime.className = "journal-subtime";
+          noteTime.textContent = note.time;
+          row.appendChild(noteTime);
+        }
+        notes.appendChild(row);
+      });
+      item.appendChild(notes);
+    }
     list.appendChild(item);
   });
   contentRef.appendChild(list);
