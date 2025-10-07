@@ -65,6 +65,44 @@
         </main>
       </div>
     </div>
-    <script type="module" src="scripts/main.js"></script>
+    <script type="module">
+      import("./scripts/main.js").catch((error) => {
+        window.__JALAN_KELUAR_MODULE_ERROR__ = error;
+        window.dispatchEvent(new CustomEvent("jalanKeluar:module-error", { detail: error }));
+      });
+    </script>
+    <script>
+      (function () {
+        function startFallback() {
+          const script = document.createElement("script");
+          script.src = "./scripts/bundle.js";
+          script.async = false;
+          script.onload = () => {
+            const game = window.GameApp || window;
+            const initializer = game && typeof game.initializeGame === "function" ? game.initializeGame : null;
+            if (!initializer) {
+              console.error("Fallback skrip termuat, tetapi inisialisasi game tidak ditemukan.");
+              return;
+            }
+            if (document.readyState === "loading") {
+              document.addEventListener("DOMContentLoaded", initializer, { once: true });
+            } else {
+              initializer();
+            }
+          };
+          script.onerror = () => {
+            console.error("Gagal memuat skrip fallback untuk game.");
+          };
+          document.head.appendChild(script);
+        }
+
+        if (window.__JALAN_KELUAR_MODULE_ERROR__) {
+          startFallback();
+          return;
+        }
+
+        window.addEventListener("jalanKeluar:module-error", startFallback, { once: true });
+      })();
+    </script>
   </body>
 </html>

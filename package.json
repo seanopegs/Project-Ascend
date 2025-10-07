@@ -1,0 +1,16 @@
+{
+  "name": "project-ascend",
+  "version": "1.0.0",
+  "description": "Game openworld RPG",
+  "main": "index.js",
+  "scripts": {
+    "build:fallback": "esbuild scripts/main.js --bundle --format=iife --global-name=GameApp --outfile=scripts/bundle.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "esbuild": "^0.25.10"
+  }
+}
