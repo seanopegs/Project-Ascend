@@ -25,8 +25,12 @@ export function createFloatingWindow({ container, modal, handle }) {
   }
 
   let pointerId = null;
-  let offsetX = 0;
-  let offsetY = 0;
+  let startPointerX = 0;
+  let startPointerY = 0;
+  let startLeft = 0;
+  let startTop = 0;
+  let modalWidth = 0;
+  let modalHeight = 0;
   let hasCustomPosition = false;
 
   container.classList.add("floating-overlay");
@@ -44,17 +48,19 @@ export function createFloatingWindow({ container, modal, handle }) {
   }
 
   function updatePosition(clientX, clientY) {
-    const rect = modal.getBoundingClientRect();
+    const deltaX = clientX - startPointerX;
+    const deltaY = clientY - startPointerY;
     const availableWidth = window.innerWidth;
     const availableHeight = window.innerHeight;
     const minLeft = DEFAULT_MARGIN;
-    const maxLeft = Math.max(minLeft, availableWidth - rect.width - DEFAULT_MARGIN);
+    const maxLeft = Math.max(minLeft, availableWidth - modalWidth - DEFAULT_MARGIN);
     const minTop = DEFAULT_MARGIN;
-    const maxTop = Math.max(minTop, availableHeight - rect.height - DEFAULT_MARGIN);
-    const clampedLeft = clamp(clientX - offsetX, minLeft, maxLeft);
-    const clampedTop = clamp(clientY - offsetY, minTop, maxTop);
-    modal.style.left = `${clampedLeft}px`;
-    modal.style.top = `${clampedTop}px`;
+    const maxTop = Math.max(minTop, availableHeight - modalHeight - DEFAULT_MARGIN);
+    const nextLeft = clamp(startLeft + deltaX, minLeft, maxLeft);
+    const nextTop = clamp(startTop + deltaY, minTop, maxTop);
+
+    modal.style.left = `${nextLeft}px`;
+    modal.style.top = `${nextTop}px`;
   }
 
   function endDrag(event) {
@@ -96,8 +102,12 @@ export function createFloatingWindow({ container, modal, handle }) {
       modal.style.top = `${rect.top}px`;
       rect = modal.getBoundingClientRect();
     }
-    offsetX = event.clientX - rect.left;
-    offsetY = event.clientY - rect.top;
+    startPointerX = event.clientX;
+    startPointerY = event.clientY;
+    startLeft = rect.left;
+    startTop = rect.top;
+    modalWidth = rect.width;
+    modalHeight = rect.height;
     modal.dataset.dragging = "true";
     container.dataset.dragging = "true";
     handle.style.cursor = "grabbing";

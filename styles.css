@@ -998,11 +998,6 @@ body {
   max-width: 28rem;
 }
 
-html.modal-open,
-body.modal-open {
-  overflow: hidden;
-}
-
 @media (max-width: 640px) {
   .journal-modal {
     width: min(100%, 420px);
