@@ -11,9 +11,36 @@ const closeLabel = "Tutup Jurnal";
 const TITLE_ID = "journalDialogTitle";
 const BODY_ID = "journalDialogBody";
 
+function handleJournalButtonClick(event) {
+  event?.preventDefault?.();
+  toggleJournal();
+}
+
+function handlePanelBackgroundClick(event) {
+  if (event.target === panelRef) {
+    closeJournal();
+  }
+}
+
+function handleCloseButtonClick(event) {
+  event?.preventDefault?.();
+  closeJournal();
+}
+
 export function initializeJournal(button, panel, provider) {
   if (!button || !panel) {
     return;
+  }
+
+  if (buttonRef) {
+    buttonRef.removeEventListener("click", handleJournalButtonClick);
+  }
+  if (panelRef) {
+    panelRef.removeEventListener("click", handlePanelBackgroundClick);
+    panelRef.removeEventListener("keydown", handleKeydown);
+  }
+  if (closeButtonRef) {
+    closeButtonRef.removeEventListener("click", handleCloseButtonClick);
   }
 
   buttonRef = button;
@@ -50,23 +77,13 @@ export function initializeJournal(button, panel, provider) {
   contentRef = panelRef.querySelector(".journal-modal__body");
   closeButtonRef = panelRef.querySelector(".journal-modal__close");
 
-  closeButtonRef?.addEventListener("click", () => {
-    closeJournal();
-  });
-
-  panelRef.addEventListener("click", (event) => {
-    if (event.target === panelRef) {
-      closeJournal();
-    }
-  });
-
+  closeButtonRef?.addEventListener("click", handleCloseButtonClick);
+  panelRef.addEventListener("click", handlePanelBackgroundClick);
   panelRef.addEventListener("keydown", handleKeydown);
 
   updateVisibility();
 
-  buttonRef.addEventListener("click", () => {
-    toggleJournal();
-  });
+  buttonRef.addEventListener("click", handleJournalButtonClick);
 }
 
 function handleKeydown(event) {

@@ -33,6 +33,25 @@ let journalPanel;
 let miniMapContainer;
 let statsPanelVisible = false;
 
+function detachUiHandlers() {
+  if (toggleStatsButton) {
+    toggleStatsButton.removeEventListener("click", handleToggleStatsClick);
+  }
+  if (restartButton) {
+    restartButton.removeEventListener("click", handleRestartClick);
+  }
+}
+
+function handleToggleStatsClick(event) {
+  event?.preventDefault?.();
+  setStatsPanelVisibility(!statsPanelVisible);
+}
+
+function handleRestartClick(event) {
+  event?.preventDefault?.();
+  resetGame();
+}
+
 function disableControl(button, message) {
   if (!button) {
     return;
@@ -47,6 +66,8 @@ function disableControl(button, message) {
 }
 
 export function initializeGame() {
+  detachUiHandlers();
+
   statsElement = document.getElementById("stats");
   statusSummaryElement = document.getElementById("statusSummary");
   statusMetricsElement = document.getElementById("statusMetrics");
@@ -87,15 +108,11 @@ export function initializeGame() {
   }
 
   if (toggleStatsButton && statsElement) {
-    toggleStatsButton.addEventListener("click", () => {
-      setStatsPanelVisibility(!statsPanelVisible);
-    });
+    toggleStatsButton.addEventListener("click", handleToggleStatsClick);
   }
 
   if (restartButton) {
-    restartButton.addEventListener("click", () => {
-      resetGame();
-    });
+    restartButton.addEventListener("click", handleRestartClick);
   }
 
   resetGame();
