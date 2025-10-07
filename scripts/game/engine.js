@@ -3,7 +3,7 @@ import { statusConfig } from "../config/status.js";
 import { actionLibrary } from "./actions.js";
 import { locations } from "../story/locations.js";
 import { scheduledEvents, randomEvents } from "../story/events.js";
-import { initializeStatsUI, updateStatsUI } from "../ui/statsPanel.js";
+import { initializeStatsUI, updateStatsUI, onStatsVisibilityChange } from "../ui/statsPanel.js";
 import { initializeStatusPanel, updateStatusPanel } from "../ui/statusPanel.js";
 import { renderFeedback } from "../ui/feedbackPanel.js";
 import { setStoryText } from "../ui/storyRenderer.js";
@@ -19,6 +19,9 @@ const allStatsMetadata = new Map();
 let worldState = createInitialWorldState();
 let gameEnded = false;
 let currentEnding = null;
+const conditionNoteMap = new Map();
+let conditionNoteSequence = 0;
+let showInsightsInFeedback = true;
 
 let statsElement;
 let statusSummaryElement;
@@ -90,7 +93,7 @@ export function initializeGame() {
   buildMetadata();
 
   if (statsElement) {
-    initializeStatsUI(statsElement, stats);
+    initializeStatsUI(statsElement, stats, { onRequestClose: () => setStatsPanelVisibility(false) });
   }
 
   if (statusMetricsElement) {
@@ -191,6 +194,9 @@ function resetGame() {
   worldState.flags.triggeredEvents = {};
   gameEnded = false;
   currentEnding = null;
+  conditionNoteMap.clear();
+  conditionNoteSequence = 0;
+  showInsightsInFeedback = true;
   resetStats();
   updateStatusSummary();
   if (statusMetricsElement) {
@@ -743,18 +749,23 @@ function renderScene(narratives = [], changeRecords = []) {
     updateStatusPanel(worldState);
   }
   updateMiniMap(worldState.location);
-  refreshJournal();
 
   const aggregated = aggregateChanges(changeRecords);
   const insights = getInsights();
+  recordConditionNotes(insights);
+  refreshJournal();
   if (feedbackElement) {
+    const shouldShowInsights = showInsightsInFeedback && insights.length > 0;
     renderFeedback(
       feedbackElement,
       aggregated,
-      insights,
+      shouldShowInsights ? insights : [],
       (key) => allStatsMetadata.get(key),
       formatChange,
     );
+    if (shouldShowInsights) {
+      showInsightsInFeedback = false;
+    }
   }
 
   const location = locations[worldState.location];
@@ -981,6 +992,16 @@ function buildJournalEntries() {
     });
   }
 
+  const conditionNotes = getConditionNotesForJournal();
+  if (conditionNotes.length) {
+    const latest = conditionNotes[0];
+    entries.push({
+      title: "Catatan Kondisi",
+      time: `Diperbarui ${latest.time}`,
+      items: conditionNotes.map((note) => ({ text: note.text, time: note.time })),
+    });
+  }
+
   return entries;
 }
 
@@ -999,25 +1020,46 @@ function formatFutureSchedule(schedule) {
 
 export { performAction, moveTo };
 
+function getConditionNotesForJournal() {
+  const notes = Array.from(conditionNoteMap.values()).sort((a, b) => b.sequence - a.sequence);
+  return notes.slice(0, 8);
+}
+
+function recordConditionNotes(insights = []) {
+  if (!Array.isArray(insights) || !insights.length) {
+    return;
+  }
+  const calendar = formatCalendarDate(worldState);
+  const time = formatTime(worldState.hour, worldState.minute);
+  const label = `${calendar} • ${time}`;
+  insights.forEach((text) => {
+    if (!text) {
+      return;
+    }
+    const existing = conditionNoteMap.get(text);
+    conditionNoteSequence += 1;
+    if (existing) {
+      existing.time = label;
+      existing.sequence = conditionNoteSequence;
+    } else {
+      conditionNoteMap.set(text, { text, time: label, sequence: conditionNoteSequence });
+    }
+  });
+}
+
 function setStatsPanelVisibility(visible) {
   statsPanelVisible = Boolean(visible);
   if (!statsElement || !toggleStatsButton) {
     return;
   }
 
-  if (statsPanelVisible) {
-    statsElement.hidden = false;
-    statsElement.removeAttribute("hidden");
-    statsElement.setAttribute("aria-hidden", "false");
-    if (typeof statsElement.scrollIntoView === "function" && statsElement.isConnected) {
-      statsElement.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  onStatsVisibilityChange(statsPanelVisible);
+
+  if (!statsPanelVisible) {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && statsElement.contains(active)) {
+      toggleStatsButton.focus();
     }
-  } else {
-    statsElement.hidden = true;
-    if (!statsElement.hasAttribute("hidden")) {
-      statsElement.setAttribute("hidden", "");
-    }
-    statsElement.setAttribute("aria-hidden", "true");
   }
 
   const expanded = statsPanelVisible ? "true" : "false";

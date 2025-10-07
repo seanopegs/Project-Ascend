@@ -719,24 +719,192 @@ var GameApp = (() => {
     }
   ];
 
+  // scripts/ui/floatingWindow.js
+  var DEFAULT_MARGIN = 24;
+  function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
+  }
+  function isInteractiveElement(element) {
+    if (!(element instanceof HTMLElement)) {
+      return false;
+    }
+    return Boolean(
+      element.closest(
+        'button, a, input, textarea, select, [data-no-drag], [role="button"], [role="tab"], [role="menuitem"]'
+      )
+    );
+  }
+  function createFloatingWindow({ container, modal, handle }) {
+    if (!container || !modal || !handle) {
+      return {
+        center: () => {
+        },
+        destroy: () => {
+        },
+        hasCustomPosition: () => false
+      };
+    }
+    let pointerId = null;
+    let offsetX = 0;
+    let offsetY = 0;
+    let hasCustomPosition = false;
+    container.classList.add("floating-overlay");
+    modal.classList.add("floating-window");
+    handle.classList.add("floating-window__handle");
+    handle.style.cursor = "grab";
+    function applyCenterPosition() {
+      hasCustomPosition = false;
+      modal.style.transform = "translate(-50%, -50%)";
+      modal.style.left = "50%";
+      modal.style.top = "50%";
+    }
+    function updatePosition(clientX, clientY) {
+      const rect = modal.getBoundingClientRect();
+      const availableWidth = window.innerWidth;
+      const availableHeight = window.innerHeight;
+      const minLeft = DEFAULT_MARGIN;
+      const maxLeft = Math.max(minLeft, availableWidth - rect.width - DEFAULT_MARGIN);
+      const minTop = DEFAULT_MARGIN;
+      const maxTop = Math.max(minTop, availableHeight - rect.height - DEFAULT_MARGIN);
+      const clampedLeft = clamp(clientX - offsetX, minLeft, maxLeft);
+      const clampedTop = clamp(clientY - offsetY, minTop, maxTop);
+      modal.style.left = `${clampedLeft}px`;
+      modal.style.top = `${clampedTop}px`;
+    }
+    function endDrag(event) {
+      if (pointerId !== null && event.pointerId !== pointerId) {
+        return;
+      }
+      handle.releasePointerCapture?.(pointerId);
+      pointerId = null;
+      handle.style.cursor = "grab";
+      modal.dataset.dragging = "false";
+      container.dataset.dragging = "false";
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", endDrag);
+      window.removeEventListener("pointercancel", endDrag);
+    }
+    function handlePointerMove(event) {
+      if (pointerId === null || event.pointerId !== pointerId) {
+        return;
+      }
+      event.preventDefault();
+      hasCustomPosition = true;
+      if (modal.style.transform.includes("-50%")) {
+        const rect = modal.getBoundingClientRect();
+        modal.style.transform = "translate(0, 0)";
+        modal.style.left = `${rect.left}px`;
+        modal.style.top = `${rect.top}px`;
+      }
+      updatePosition(event.clientX, event.clientY);
+    }
+    function startDrag(event) {
+      if (pointerId !== null) {
+        return;
+      }
+      if (isInteractiveElement(event.target)) {
+        return;
+      }
+      pointerId = event.pointerId;
+      handle.setPointerCapture?.(pointerId);
+      const rect = modal.getBoundingClientRect();
+      offsetX = event.clientX - rect.left;
+      offsetY = event.clientY - rect.top;
+      modal.dataset.dragging = "true";
+      container.dataset.dragging = "true";
+      handle.style.cursor = "grabbing";
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", endDrag);
+      window.addEventListener("pointercancel", endDrag);
+      event.preventDefault();
+    }
+    handle.addEventListener("pointerdown", startDrag);
+    const controller = {
+      center: () => {
+        applyCenterPosition();
+      },
+      hasCustomPosition: () => hasCustomPosition,
+      destroy: () => {
+        handle.removeEventListener("pointerdown", startDrag);
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", endDrag);
+        window.removeEventListener("pointercancel", endDrag);
+      }
+    };
+    applyCenterPosition();
+    return controller;
+  }
+
   // scripts/ui/statsPanel.js
+  var TITLE_ID = "statsDialogTitle";
   var statElements = /* @__PURE__ */ new Map();
   var containerRef = null;
-  function initializeStatsUI(container, stats2) {
+  var gridRef = null;
+  var closeButtonRef = null;
+  var floatingController = null;
+  var onRequestCloseRef = null;
+  function handleCloseClick(event) {
+    event?.preventDefault?.();
+    onRequestCloseRef?.();
+  }
+  function initializeStatsUI(container, stats2, options = {}) {
     if (!container) {
       containerRef = null;
+      gridRef = null;
+      closeButtonRef = null;
+      floatingController?.destroy?.();
+      floatingController = null;
+      onRequestCloseRef = null;
       statElements.clear();
       return;
     }
+    onRequestCloseRef = typeof options.onRequestClose === "function" ? options.onRequestClose : null;
+    if (closeButtonRef) {
+      closeButtonRef.removeEventListener("click", handleCloseClick);
+    }
+    floatingController?.destroy?.();
+    floatingController = null;
     containerRef = container;
     containerRef.innerHTML = "";
+    containerRef.classList.add("stats-panel");
+    containerRef.setAttribute("role", "dialog");
+    containerRef.setAttribute("aria-modal", "false");
+    containerRef.setAttribute("aria-labelledby", TITLE_ID);
+    containerRef.setAttribute("aria-hidden", "true");
+    containerRef.tabIndex = -1;
+    containerRef.hidden = true;
+    containerRef.dataset.open = "false";
+    containerRef.innerHTML = `
+    <div class="stats-modal" role="document">
+      <header class="stats-modal__header">
+        <div class="stats-modal__titles">
+          <p class="stats-modal__subtitle">Profil Kepribadian</p>
+          <h2 class="stats-modal__title" id="${TITLE_ID}">Stat Karakter</h2>
+        </div>
+        <button type="button" class="stats-modal__close" aria-label="Tutup stat">
+          <span aria-hidden="true">\u2715</span>
+        </button>
+      </header>
+      <div class="stats-modal__body">
+        <div class="stats-grid" role="list"></div>
+      </div>
+    </div>
+  `;
+    const modalRef2 = containerRef.querySelector(".stats-modal");
+    const dragHandle = containerRef.querySelector(".stats-modal__header");
+    gridRef = containerRef.querySelector(".stats-grid");
+    closeButtonRef = containerRef.querySelector(".stats-modal__close");
+    floatingController = createFloatingWindow({ container: containerRef, modal: modalRef2, handle: dragHandle });
+    closeButtonRef?.addEventListener("click", handleCloseClick);
     statElements.clear();
+    gridRef.innerHTML = "";
     statsOrder.forEach((key) => {
       const stat = stats2[key];
       if (!stat) return;
       const card = document.createElement("article");
       card.className = "stat-card";
       card.dataset.stat = key;
+      card.setAttribute("role", "listitem");
       if (stat.color) {
         card.style.setProperty("--stat-color", stat.color);
       }
@@ -779,9 +947,34 @@ var GameApp = (() => {
       description.className = "stat-description";
       description.textContent = stat.description;
       card.append(header, progress, meta, description);
-      containerRef.appendChild(card);
+      gridRef.appendChild(card);
       statElements.set(key, { card, bar, progress, value, tier });
     });
+    floatingController?.center?.();
+  }
+  function onStatsVisibilityChange(visible) {
+    if (!containerRef) {
+      return;
+    }
+    if (visible) {
+      containerRef.hidden = false;
+      containerRef.removeAttribute("hidden");
+      containerRef.setAttribute("aria-hidden", "false");
+      containerRef.dataset.open = "true";
+      if (floatingController && !floatingController.hasCustomPosition()) {
+        floatingController.center();
+      }
+      window.requestAnimationFrame(() => {
+        closeButtonRef?.focus?.();
+      });
+    } else {
+      containerRef.hidden = true;
+      if (!containerRef.hasAttribute("hidden")) {
+        containerRef.setAttribute("hidden", "");
+      }
+      containerRef.setAttribute("aria-hidden", "true");
+      containerRef.dataset.open = "false";
+    }
   }
   function updateStatsUI(stats2) {
     if (!statElements.size) {
@@ -803,7 +996,7 @@ var GameApp = (() => {
   }
 
   // scripts/util/math.js
-  function clamp(value, min, max) {
+  function clamp2(value, min, max) {
     return Math.min(Math.max(value, min), max);
   }
   function normalizeValue(value) {
@@ -874,7 +1067,7 @@ var GameApp = (() => {
         const min = typeof meta.min === "number" ? meta.min : 0;
         const max = typeof meta.max === "number" ? meta.max : 100;
         const percent = (value - min) / (max - min) * 100;
-        elements.meterFill.style.width = `${clamp(percent, 0, 100)}%`;
+        elements.meterFill.style.width = `${clamp2(percent, 0, 100)}%`;
       }
       if (elements.description) {
         const description = meta.describeState?.(value, worldState2) ?? "";
@@ -1052,13 +1245,16 @@ var GameApp = (() => {
   var panelRef = null;
   var buttonRef = null;
   var contentRef = null;
-  var closeButtonRef = null;
+  var closeButtonRef2 = null;
+  var floatingController2 = null;
+  var modalRef = null;
+  var dragHandleRef = null;
   var providerRef = () => [];
   var isOpen = false;
   var previousFocus = null;
   var openLabel = "Lihat Jurnal";
   var closeLabel = "Tutup Jurnal";
-  var TITLE_ID = "journalDialogTitle";
+  var TITLE_ID2 = "journalDialogTitle";
   var BODY_ID = "journalDialogBody";
   function handleJournalButtonClick(event) {
     event?.preventDefault?.();
@@ -1084,9 +1280,11 @@ var GameApp = (() => {
       panelRef.removeEventListener("click", handlePanelBackgroundClick);
       panelRef.removeEventListener("keydown", handleKeydown);
     }
-    if (closeButtonRef) {
-      closeButtonRef.removeEventListener("click", handleCloseButtonClick);
+    if (closeButtonRef2) {
+      closeButtonRef2.removeEventListener("click", handleCloseButtonClick);
     }
+    floatingController2?.destroy?.();
+    floatingController2 = null;
     buttonRef = button;
     panelRef = panel;
     providerRef = provider;
@@ -1096,7 +1294,7 @@ var GameApp = (() => {
     panelRef.classList.add("journal-panel");
     panelRef.setAttribute("role", "dialog");
     panelRef.setAttribute("aria-modal", "false");
-    panelRef.setAttribute("aria-labelledby", TITLE_ID);
+    panelRef.setAttribute("aria-labelledby", TITLE_ID2);
     panelRef.setAttribute("aria-describedby", BODY_ID);
     panelRef.tabIndex = -1;
     panelRef.hidden = true;
@@ -1106,7 +1304,7 @@ var GameApp = (() => {
       <header class="journal-modal__header">
         <div class="journal-modal__titles">
           <p class="journal-modal__subtitle">Catatan Strategi</p>
-          <h2 class="journal-modal__title" id="${TITLE_ID}">Jurnal Visi Ke Depan</h2>
+          <h2 class="journal-modal__title" id="${TITLE_ID2}">Jurnal Visi Ke Depan</h2>
         </div>
         <button type="button" class="journal-modal__close" aria-label="Tutup jurnal">
           <span aria-hidden="true">\u2715</span>
@@ -1115,9 +1313,16 @@ var GameApp = (() => {
       <div class="journal-modal__body" id="${BODY_ID}"></div>
     </div>
   `;
+    modalRef = panelRef.querySelector(".journal-modal");
+    dragHandleRef = panelRef.querySelector(".journal-modal__header");
     contentRef = panelRef.querySelector(".journal-modal__body");
-    closeButtonRef = panelRef.querySelector(".journal-modal__close");
-    closeButtonRef?.addEventListener("click", handleCloseButtonClick);
+    closeButtonRef2 = panelRef.querySelector(".journal-modal__close");
+    floatingController2 = createFloatingWindow({
+      container: panelRef,
+      modal: modalRef,
+      handle: dragHandleRef
+    });
+    closeButtonRef2?.addEventListener("click", handleCloseButtonClick);
     panelRef.addEventListener("click", handlePanelBackgroundClick);
     panelRef.addEventListener("keydown", handleKeydown);
     updateVisibility();
@@ -1137,7 +1342,7 @@ var GameApp = (() => {
     } else if (!panelRef.hasAttribute("hidden")) {
       panelRef.setAttribute("hidden", "");
     }
-    panelRef.setAttribute("aria-modal", isOpen ? "true" : "false");
+    panelRef.setAttribute("aria-modal", "false");
     panelRef.setAttribute("aria-hidden", isOpen ? "false" : "true");
     panelRef.dataset.open = isOpen ? "true" : "false";
     const expanded = isOpen ? "true" : "false";
@@ -1146,17 +1351,18 @@ var GameApp = (() => {
     buttonRef.textContent = isOpen ? closeLabel : openLabel;
     if (isOpen) {
       previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      document.body.classList.add("modal-open");
+      if (floatingController2 && !floatingController2.hasCustomPosition()) {
+        floatingController2.center();
+      }
       renderEntries();
       window.requestAnimationFrame(() => {
-        if (closeButtonRef) {
-          closeButtonRef.focus();
+        if (closeButtonRef2) {
+          closeButtonRef2.focus();
         } else {
           panelRef.focus();
         }
       });
     } else {
-      document.body.classList.remove("modal-open");
       if (previousFocus && typeof previousFocus.focus === "function") {
         previousFocus.focus();
       }
@@ -1182,14 +1388,41 @@ var GameApp = (() => {
     list.className = "journal-list";
     entries.forEach((entry) => {
       const item = document.createElement("li");
-      const title = document.createElement("h3");
-      title.textContent = entry.title;
-      const time = document.createElement("p");
-      time.className = "journal-time";
-      time.textContent = entry.time;
-      const description = document.createElement("p");
-      description.textContent = entry.description;
-      item.append(title, time, description);
+      if (entry.title) {
+        const title = document.createElement("h3");
+        title.textContent = entry.title;
+        item.appendChild(title);
+      }
+      if (entry.time) {
+        const time = document.createElement("p");
+        time.className = "journal-time";
+        time.textContent = entry.time;
+        item.appendChild(time);
+      }
+      if (entry.description) {
+        const description = document.createElement("p");
+        description.textContent = entry.description;
+        item.appendChild(description);
+      }
+      if (Array.isArray(entry.items) && entry.items.length) {
+        const notes = document.createElement("ul");
+        notes.className = "journal-sublist";
+        entry.items.forEach((note) => {
+          const row = document.createElement("li");
+          const noteText = document.createElement("span");
+          noteText.className = "journal-subtext";
+          noteText.textContent = note.text;
+          row.appendChild(noteText);
+          if (note.time) {
+            const noteTime = document.createElement("span");
+            noteTime.className = "journal-subtime";
+            noteTime.textContent = note.time;
+            row.appendChild(noteTime);
+          }
+          notes.appendChild(row);
+        });
+        item.appendChild(notes);
+      }
       list.appendChild(item);
     });
     contentRef.appendChild(list);
@@ -1281,6 +1514,9 @@ var GameApp = (() => {
   var worldState = createInitialWorldState();
   var gameEnded = false;
   var currentEnding = null;
+  var conditionNoteMap = /* @__PURE__ */ new Map();
+  var conditionNoteSequence = 0;
+  var showInsightsInFeedback = true;
   var statsElement;
   var statusSummaryElement;
   var statusMetricsElement;
@@ -1342,7 +1578,7 @@ var GameApp = (() => {
     }
     buildMetadata();
     if (statsElement) {
-      initializeStatsUI(statsElement, stats);
+      initializeStatsUI(statsElement, stats, { onRequestClose: () => setStatsPanelVisibility(false) });
     }
     if (statusMetricsElement) {
       initializeStatusPanel(statusMetricsElement, worldState);
@@ -1433,6 +1669,9 @@ var GameApp = (() => {
     worldState.flags.triggeredEvents = {};
     gameEnded = false;
     currentEnding = null;
+    conditionNoteMap.clear();
+    conditionNoteSequence = 0;
+    showInsightsInFeedback = true;
     resetStats();
     updateStatusSummary();
     if (statusMetricsElement) {
@@ -1476,7 +1715,7 @@ var GameApp = (() => {
       const stat = stats[key];
       if (!stat) return;
       const previous = stat.value;
-      const next = clamp(previous + amount, 0, stat.max);
+      const next = clamp2(previous + amount, 0, stat.max);
       if (next !== previous) {
         const delta = next - previous;
         const normalizedDelta = normalizeValue(delta);
@@ -1914,17 +2153,22 @@ var GameApp = (() => {
       updateStatusPanel(worldState);
     }
     updateMiniMap(worldState.location);
-    refreshJournal();
     const aggregated = aggregateChanges(changeRecords);
     const insights = getInsights();
+    recordConditionNotes(insights);
+    refreshJournal();
     if (feedbackElement) {
+      const shouldShowInsights = showInsightsInFeedback && insights.length > 0;
       renderFeedback(
         feedbackElement,
         aggregated,
-        insights,
+        shouldShowInsights ? insights : [],
         (key) => allStatsMetadata.get(key),
         formatChange
       );
+      if (shouldShowInsights) {
+        showInsightsInFeedback = false;
+      }
     }
     const location = locations[worldState.location];
     const paragraphs = [];
@@ -2114,6 +2358,15 @@ var GameApp = (() => {
         description: `Sisa pinjaman ${formatCurrency(worldState.flags.dinaLoanOutstanding)}. Kirim cicilan agar kepercayaan tetap terjaga.`
       });
     }
+    const conditionNotes = getConditionNotesForJournal();
+    if (conditionNotes.length) {
+      const latest = conditionNotes[0];
+      entries.push({
+        title: "Catatan Kondisi",
+        time: `Diperbarui ${latest.time}`,
+        items: conditionNotes.map((note) => ({ text: note.text, time: note.time }))
+      });
+    }
     return entries;
   }
   function formatFutureSchedule(schedule) {
@@ -2128,24 +2381,42 @@ var GameApp = (() => {
     const days = Math.floor(diffHours / 24);
     return `Dalam ${days} hari pukul ${formatTime(schedule.hour)}`;
   }
+  function getConditionNotesForJournal() {
+    const notes = Array.from(conditionNoteMap.values()).sort((a, b) => b.sequence - a.sequence);
+    return notes.slice(0, 8);
+  }
+  function recordConditionNotes(insights = []) {
+    if (!Array.isArray(insights) || !insights.length) {
+      return;
+    }
+    const calendar = formatCalendarDate(worldState);
+    const time = formatTime(worldState.hour, worldState.minute);
+    const label = `${calendar} \u2022 ${time}`;
+    insights.forEach((text) => {
+      if (!text) {
+        return;
+      }
+      const existing = conditionNoteMap.get(text);
+      conditionNoteSequence += 1;
+      if (existing) {
+        existing.time = label;
+        existing.sequence = conditionNoteSequence;
+      } else {
+        conditionNoteMap.set(text, { text, time: label, sequence: conditionNoteSequence });
+      }
+    });
+  }
   function setStatsPanelVisibility(visible) {
     statsPanelVisible = Boolean(visible);
     if (!statsElement || !toggleStatsButton) {
       return;
     }
-    if (statsPanelVisible) {
-      statsElement.hidden = false;
-      statsElement.removeAttribute("hidden");
-      statsElement.setAttribute("aria-hidden", "false");
-      if (typeof statsElement.scrollIntoView === "function" && statsElement.isConnected) {
-        statsElement.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    onStatsVisibilityChange(statsPanelVisible);
+    if (!statsPanelVisible) {
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && statsElement.contains(active)) {
+        toggleStatsButton.focus();
       }
-    } else {
-      statsElement.hidden = true;
-      if (!statsElement.hasAttribute("hidden")) {
-        statsElement.setAttribute("hidden", "");
-      }
-      statsElement.setAttribute("aria-hidden", "true");
     }
     const expanded = statsPanelVisible ? "true" : "false";
     toggleStatsButton.setAttribute("aria-expanded", expanded);
