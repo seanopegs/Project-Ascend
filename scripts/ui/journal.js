@@ -1,4 +1,5 @@
 import { createFloatingWindow } from "./floatingWindow.js";
+import { registerModalOpen, registerModalClose } from "./modalManager.js";
 
 let panelRef = null;
 let buttonRef = null;
@@ -128,6 +129,7 @@ function updateVisibility() {
   buttonRef.textContent = isOpen ? closeLabel : openLabel;
 
   if (isOpen) {
+    registerModalOpen();
     previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     if (floatingController && !floatingController.hasCustomPosition()) {
       floatingController.center();
@@ -141,6 +143,7 @@ function updateVisibility() {
       }
     });
   } else {
+    registerModalClose();
     if (previousFocus && typeof previousFocus.focus === "function") {
       previousFocus.focus();
     }

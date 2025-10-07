@@ -1,7 +1,8 @@
 @import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap");
 
 :root {
-  color-scheme: dark;
+  --color-scheme: dark;
+  color-scheme: var(--color-scheme);
   --bg: #0c0b10;
   --bg-soft: rgba(24, 22, 32, 0.75);
   --surface: rgba(24, 24, 32, 0.65);
@@ -15,6 +16,117 @@
   --positive: #4ade80;
   --negative: #fb7185;
   --shadow: rgba(0, 0, 0, 0.55);
+  --app-background: radial-gradient(circle at 5% 10%, rgba(251, 191, 36, 0.1), transparent 45%),
+    radial-gradient(circle at 90% 5%, rgba(249, 115, 22, 0.12), transparent 50%),
+    linear-gradient(160deg, #050509 0%, #101021 45%, #07070d 100%);
+  --app-shell-bg: rgba(11, 10, 20, 0.65);
+  --app-shell-border: rgba(255, 231, 179, 0.08);
+  --app-shell-shadow: 0 40px 80px -40px var(--shadow);
+  --mini-map-background: radial-gradient(circle at 30% 20%, rgba(251, 191, 36, 0.15), transparent 60%),
+    rgba(17, 17, 28, 0.85);
+  --mini-map-border: rgba(251, 191, 36, 0.18);
+  --mini-map-cell-bg: rgba(15, 15, 25, 0.85);
+  --mini-map-cell-border: rgba(255, 231, 179, 0.12);
+  --mini-map-cell-active-border: rgba(251, 191, 36, 0.55);
+  --mini-map-cell-active-shadow: 0 16px 28px -18px rgba(249, 115, 22, 0.6);
+  --mini-map-label-color: rgba(249, 250, 252, 0.9);
+  --choice-note-bg: rgba(24, 22, 32, 0.85);
+  --journal-modal-bg: linear-gradient(160deg, rgba(36, 36, 48, 0.98) 0%, rgba(24, 24, 32, 0.94) 100%);
+  --journal-modal-border: rgba(255, 231, 179, 0.18);
+  --journal-header-bg: linear-gradient(180deg, rgba(48, 48, 62, 0.95) 0%, rgba(28, 28, 38, 0.92) 100%);
+  --journal-subtitle-color: rgba(255, 231, 179, 0.58);
+  --journal-title-color: rgba(255, 231, 179, 0.95);
+  --journal-close-bg: rgba(24, 22, 32, 0.55);
+  --journal-close-color: rgba(255, 231, 179, 0.85);
+  --journal-close-hover-bg: rgba(251, 191, 36, 0.22);
+  --journal-close-hover-color: rgba(255, 247, 227, 0.95);
+  --journal-close-shadow: 0 8px 16px rgba(8, 6, 18, 0.35);
+  --journal-entry-bg: rgba(32, 32, 44, 0.92);
+  --journal-entry-border: rgba(255, 231, 179, 0.14);
+  --journal-entry-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 16px 28px rgba(5, 4, 14, 0.4);
+  --journal-entry-text: rgba(243, 244, 246, 0.88);
+  --journal-modal-shadow: 0 28px 70px rgba(5, 4, 14, 0.6);
+  --stats-modal-bg: linear-gradient(160deg, rgba(40, 40, 56, 0.98) 0%, rgba(22, 22, 32, 0.95) 100%);
+  --stats-modal-border: rgba(255, 231, 179, 0.14);
+  --stats-header-bg: linear-gradient(180deg, rgba(48, 48, 64, 0.94) 0%, rgba(30, 30, 42, 0.9) 100%);
+  --stats-title-color: rgba(255, 231, 179, 0.92);
+  --stats-subtitle-color: rgba(255, 231, 179, 0.52);
+  --stats-close-bg: rgba(28, 26, 36, 0.6);
+  --stats-close-color: rgba(255, 231, 179, 0.85);
+  --stats-close-hover-bg: rgba(251, 191, 36, 0.22);
+  --stats-close-hover-color: rgba(255, 247, 227, 0.95);
+  --stats-close-shadow: 0 10px 22px rgba(8, 6, 18, 0.45);
+  --stats-modal-shadow: 0 24px 70px rgba(5, 4, 14, 0.55);
+  --theme-toggle-bg: rgba(255, 231, 179, 0.12);
+  --theme-toggle-bg-hover: rgba(255, 231, 179, 0.2);
+  --theme-toggle-border: rgba(255, 231, 179, 0.35);
+  --theme-toggle-border-hover: rgba(255, 231, 179, 0.55);
+  --theme-toggle-color: var(--text-primary);
+  --theme-toggle-color-hover: var(--accent);
+}
+
+:root[data-theme="light"] {
+  --color-scheme: light;
+  --bg: #f7f5ef;
+  --bg-soft: rgba(255, 255, 255, 0.92);
+  --surface: rgba(255, 255, 255, 0.82);
+  --surface-strong: rgba(255, 255, 255, 0.9);
+  --surface-border: rgba(214, 180, 92, 0.28);
+  --text-primary: #1f2933;
+  --text-muted: rgba(55, 65, 81, 0.74);
+  --accent: #d97706;
+  --accent-strong: #b45309;
+  --accent-soft: rgba(217, 119, 6, 0.18);
+  --positive: #16a34a;
+  --negative: #dc2626;
+  --shadow: rgba(148, 132, 92, 0.3);
+  --app-background: radial-gradient(circle at 5% 10%, rgba(217, 119, 6, 0.12), transparent 50%),
+    radial-gradient(circle at 90% 5%, rgba(245, 158, 11, 0.1), transparent 55%),
+    linear-gradient(160deg, #fdf8f1 0%, #f4efe6 45%, #f8f5ee 100%);
+  --app-shell-bg: rgba(255, 255, 255, 0.9);
+  --app-shell-border: rgba(214, 180, 92, 0.32);
+  --app-shell-shadow: 0 28px 60px -30px rgba(148, 132, 92, 0.45);
+  --mini-map-background: radial-gradient(circle at 30% 20%, rgba(217, 119, 6, 0.18), transparent 65%),
+    rgba(255, 248, 235, 0.92);
+  --mini-map-border: rgba(214, 180, 92, 0.45);
+  --mini-map-cell-bg: rgba(255, 255, 255, 0.92);
+  --mini-map-cell-border: rgba(214, 180, 92, 0.35);
+  --mini-map-cell-active-border: rgba(217, 119, 6, 0.55);
+  --mini-map-cell-active-shadow: 0 16px 28px -18px rgba(217, 119, 6, 0.35);
+  --mini-map-label-color: rgba(55, 65, 81, 0.9);
+  --choice-note-bg: rgba(255, 248, 235, 0.95);
+  --journal-modal-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 245, 233, 0.95) 100%);
+  --journal-modal-border: rgba(214, 180, 92, 0.35);
+  --journal-header-bg: linear-gradient(180deg, rgba(255, 247, 227, 0.95) 0%, rgba(250, 242, 217, 0.9) 100%);
+  --journal-subtitle-color: rgba(178, 124, 33, 0.78);
+  --journal-title-color: rgba(120, 70, 20, 0.92);
+  --journal-close-bg: rgba(255, 248, 235, 0.9);
+  --journal-close-color: rgba(120, 70, 20, 0.85);
+  --journal-close-hover-bg: rgba(217, 119, 6, 0.18);
+  --journal-close-hover-color: rgba(89, 49, 6, 0.95);
+  --journal-close-shadow: 0 10px 18px rgba(214, 180, 92, 0.35);
+  --journal-entry-bg: rgba(255, 250, 239, 0.96);
+  --journal-entry-border: rgba(214, 180, 92, 0.35);
+  --journal-entry-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 12px 24px rgba(214, 180, 92, 0.25);
+  --journal-entry-text: rgba(89, 49, 6, 0.88);
+  --journal-modal-shadow: 0 24px 60px rgba(214, 180, 92, 0.35);
+  --stats-modal-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 245, 233, 0.95) 100%);
+  --stats-modal-border: rgba(214, 180, 92, 0.3);
+  --stats-header-bg: linear-gradient(180deg, rgba(255, 247, 227, 0.95) 0%, rgba(250, 242, 217, 0.9) 100%);
+  --stats-title-color: rgba(120, 70, 20, 0.9);
+  --stats-subtitle-color: rgba(178, 124, 33, 0.7);
+  --stats-close-bg: rgba(255, 248, 235, 0.9);
+  --stats-close-color: rgba(120, 70, 20, 0.85);
+  --stats-close-hover-bg: rgba(217, 119, 6, 0.2);
+  --stats-close-hover-color: rgba(89, 49, 6, 0.95);
+  --stats-close-shadow: 0 12px 24px rgba(214, 180, 92, 0.3);
+  --stats-modal-shadow: 0 22px 55px rgba(214, 180, 92, 0.3);
+  --theme-toggle-bg: rgba(217, 119, 6, 0.08);
+  --theme-toggle-bg-hover: rgba(217, 119, 6, 0.16);
+  --theme-toggle-border: rgba(217, 119, 6, 0.35);
+  --theme-toggle-border-hover: rgba(217, 119, 6, 0.55);
+  --theme-toggle-color: rgba(89, 49, 6, 0.9);
+  --theme-toggle-color-hover: rgba(89, 49, 6, 1);
 }
 
 * {
@@ -25,9 +137,7 @@ body {
   margin: 0;
   min-height: 100vh;
   font-family: "Manrope", "Segoe UI", system-ui, sans-serif;
-  background: radial-gradient(circle at 5% 10%, rgba(251, 191, 36, 0.1), transparent 45%),
-    radial-gradient(circle at 90% 5%, rgba(249, 115, 22, 0.12), transparent 50%),
-    linear-gradient(160deg, #050509 0%, #101021 45%, #07070d 100%);
+  background: var(--app-background);
   color: var(--text-primary);
   padding: 3rem 1.5rem 4rem;
   display: flex;
@@ -39,12 +149,12 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2rem;
-  background: rgba(11, 10, 20, 0.65);
+  background: var(--app-shell-bg);
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 231, 179, 0.08);
+  border: 1px solid var(--app-shell-border);
   border-radius: 28px;
   padding: 2.5rem 2.25rem 2.75rem;
-  box-shadow: 0 40px 80px -40px var(--shadow);
+  box-shadow: var(--app-shell-shadow);
 }
 
 .app-header {
@@ -73,6 +183,7 @@ body {
   display: flex;
   gap: 0.65rem;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .badge {
@@ -89,6 +200,43 @@ body {
   background: var(--accent-soft);
   border-color: rgba(251, 191, 36, 0.35);
   color: var(--accent);
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--theme-toggle-border);
+  background: var(--theme-toggle-bg);
+  color: var(--theme-toggle-color);
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.theme-toggle:hover,
+.theme-toggle:focus-visible {
+  background: var(--theme-toggle-bg-hover);
+  color: var(--theme-toggle-color-hover);
+  border-color: var(--theme-toggle-border-hover);
+  transform: translateY(-1px);
+  outline: none;
+  box-shadow: 0 12px 24px -18px var(--shadow);
+}
+
+.theme-toggle:active {
+  transform: translateY(0);
+}
+
+.theme-toggle__icon {
+  font-size: 1rem;
+  line-height: 1;
 }
 
 .app-layout {
@@ -130,7 +278,7 @@ body {
 
 .status-summary {
   margin: 0;
-  color: rgba(243, 244, 246, 0.9);
+  color: color-mix(in srgb, var(--text-primary) 88%, var(--text-muted) 12%);
   font-size: 0.95rem;
   letter-spacing: 0.03em;
 }
@@ -154,7 +302,7 @@ body {
 
 .status-label {
   font-size: 0.85rem;
-  color: rgba(209, 213, 219, 0.82);
+  color: var(--text-muted);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -167,7 +315,7 @@ body {
 .status-description {
   margin: 0;
   font-size: 0.8rem;
-  color: rgba(209, 213, 219, 0.75);
+  color: var(--text-muted);
   line-height: 1.5;
 }
 
@@ -204,9 +352,8 @@ body {
   position: relative;
   padding: 1rem;
   border-radius: 18px;
-  background: radial-gradient(circle at 30% 20%, rgba(251, 191, 36, 0.15), transparent 60%),
-    rgba(17, 17, 28, 0.85);
-  border: 1px solid rgba(251, 191, 36, 0.18);
+  background: var(--mini-map-background);
+  border: 1px solid var(--mini-map-border);
 }
 
 .mini-map-connections {
@@ -245,8 +392,8 @@ body {
   position: relative;
   min-height: 72px;
   border-radius: 16px;
-  background: rgba(15, 15, 25, 0.85);
-  border: 1px solid rgba(255, 231, 179, 0.12);
+  background: var(--mini-map-cell-bg);
+  border: 1px solid var(--mini-map-cell-border);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -268,8 +415,8 @@ body {
 }
 
 .mini-map-cell.active {
-  border-color: rgba(251, 191, 36, 0.55);
-  box-shadow: 0 16px 28px -18px rgba(249, 115, 22, 0.6);
+  border-color: var(--mini-map-cell-active-border);
+  box-shadow: var(--mini-map-cell-active-shadow);
   transform: translateY(-2px);
 }
 
@@ -282,7 +429,7 @@ body {
   z-index: 1;
   font-size: 0.85rem;
   line-height: 1.3;
-  color: rgba(249, 250, 252, 0.9);
+  color: var(--mini-map-label-color);
 }
 
 .sidebar-controls {
@@ -341,6 +488,16 @@ body {
 .button.tertiary:hover,
 .button.tertiary:focus-visible {
   background: rgba(255, 231, 179, 0.14);
+}
+
+:root[data-theme="light"] .button.tertiary {
+  background: rgba(217, 119, 6, 0.08);
+  border-color: rgba(217, 119, 6, 0.25);
+}
+
+:root[data-theme="light"] .button.tertiary:hover,
+:root[data-theme="light"] .button.tertiary:focus-visible {
+  background: rgba(217, 119, 6, 0.16);
 }
 
 
@@ -428,7 +585,7 @@ body {
 .stat-description {
   margin: 0;
   font-size: 0.78rem;
-  color: rgba(209, 213, 219, 0.74);
+  color: var(--text-muted);
   line-height: 1.45;
 }
 
@@ -544,7 +701,7 @@ body {
 .choice-note {
   font-size: 0.76rem;
   color: var(--text-muted);
-  background: rgba(24, 22, 32, 0.85);
+  background: var(--choice-note-bg);
   padding: 0.4rem 0.65rem;
   border-radius: 10px;
   border-left: 3px solid rgba(251, 191, 36, 0.65);
@@ -556,6 +713,10 @@ body {
   inset: 0;
   pointer-events: none;
   z-index: 40;
+}
+
+.floating-overlay[data-open="true"] {
+  pointer-events: auto;
 }
 
 .floating-overlay[hidden] {
@@ -596,10 +757,10 @@ body {
   max-height: min(85vh, 720px);
   display: flex;
   flex-direction: column;
-  background: linear-gradient(160deg, rgba(36, 36, 48, 0.98) 0%, rgba(24, 24, 32, 0.94) 100%);
+  background: var(--journal-modal-bg);
   border-radius: 26px;
-  border: 1px solid rgba(255, 231, 179, 0.18);
-  box-shadow: 0 28px 70px rgba(5, 4, 14, 0.6);
+  border: 1px solid var(--journal-modal-border);
+  box-shadow: var(--journal-modal-shadow);
   overflow: hidden;
 }
 
@@ -609,8 +770,8 @@ body {
   justify-content: space-between;
   gap: 1.25rem;
   padding: 1.85rem 2rem 1.35rem;
-  background: linear-gradient(180deg, rgba(48, 48, 62, 0.95) 0%, rgba(28, 28, 38, 0.92) 100%);
-  border-bottom: 1px solid rgba(255, 231, 179, 0.15);
+  background: var(--journal-header-bg);
+  border-bottom: 1px solid var(--journal-modal-border);
 }
 
 .journal-modal__titles {
@@ -624,22 +785,22 @@ body {
   font-size: 0.78rem;
   letter-spacing: 0.32em;
   text-transform: uppercase;
-  color: rgba(255, 231, 179, 0.58);
+  color: var(--journal-subtitle-color);
   font-weight: 600;
 }
 
 .journal-modal__title {
   margin: 0;
   font-size: 1.45rem;
-  color: rgba(255, 231, 179, 0.95);
+  color: var(--journal-title-color);
   letter-spacing: 0.01em;
 }
 
 .journal-modal__close {
   flex-shrink: 0;
-  border: 1px solid rgba(255, 231, 179, 0.18);
-  background: rgba(24, 22, 32, 0.55);
-  color: rgba(255, 231, 179, 0.85);
+  border: 1px solid var(--journal-modal-border);
+  background: var(--journal-close-bg);
+  color: var(--journal-close-color);
   width: 2.4rem;
   height: 2.4rem;
   border-radius: 999px;
@@ -658,10 +819,10 @@ body {
 
 .journal-modal__close:hover,
 .journal-modal__close:focus-visible {
-  background: rgba(251, 191, 36, 0.22);
-  color: rgba(255, 247, 227, 0.95);
+  background: var(--journal-close-hover-bg);
+  color: var(--journal-close-hover-color);
   transform: translateY(-1px);
-  box-shadow: 0 8px 16px rgba(8, 6, 18, 0.35);
+  box-shadow: var(--journal-close-shadow);
   outline: none;
 }
 
@@ -682,10 +843,10 @@ body {
   max-height: min(86vh, 760px);
   display: flex;
   flex-direction: column;
-  background: linear-gradient(160deg, rgba(40, 40, 56, 0.98) 0%, rgba(22, 22, 32, 0.95) 100%);
+  background: var(--stats-modal-bg);
   border-radius: 24px;
-  border: 1px solid rgba(255, 231, 179, 0.14);
-  box-shadow: 0 24px 70px rgba(5, 4, 14, 0.55);
+  border: 1px solid var(--stats-modal-border);
+  box-shadow: var(--stats-modal-shadow);
   overflow: hidden;
 }
 
@@ -695,8 +856,8 @@ body {
   justify-content: space-between;
   gap: 1.2rem;
   padding: 1.6rem 1.8rem 1.2rem;
-  background: linear-gradient(180deg, rgba(48, 48, 64, 0.94) 0%, rgba(30, 30, 42, 0.9) 100%);
-  border-bottom: 1px solid rgba(255, 231, 179, 0.12);
+  background: var(--stats-header-bg);
+  border-bottom: 1px solid var(--stats-modal-border);
 }
 
 .stats-modal__titles {
@@ -710,21 +871,21 @@ body {
   font-size: 0.76rem;
   letter-spacing: 0.28em;
   text-transform: uppercase;
-  color: rgba(255, 231, 179, 0.52);
+  color: var(--stats-subtitle-color);
   font-weight: 600;
 }
 
 .stats-modal__title {
   margin: 0;
   font-size: 1.3rem;
-  color: rgba(255, 231, 179, 0.92);
+  color: var(--stats-title-color);
   letter-spacing: 0.02em;
 }
 
 .stats-modal__close {
-  border: 1px solid rgba(255, 231, 179, 0.14);
-  background: rgba(28, 26, 36, 0.6);
-  color: rgba(255, 231, 179, 0.85);
+  border: 1px solid var(--stats-modal-border);
+  background: var(--stats-close-bg);
+  color: var(--stats-close-color);
   width: 2.2rem;
   height: 2.2rem;
   border-radius: 999px;
@@ -738,11 +899,11 @@ body {
 
 .stats-modal__close:hover,
 .stats-modal__close:focus-visible {
-  background: rgba(251, 191, 36, 0.22);
-  color: rgba(255, 247, 227, 0.95);
+  background: var(--stats-close-hover-bg);
+  color: var(--stats-close-hover-color);
   transform: translateY(-1px);
   outline: none;
-  box-shadow: 0 10px 22px rgba(8, 6, 18, 0.45);
+  box-shadow: var(--stats-close-shadow);
 }
 
 .stats-modal__body {
@@ -773,11 +934,12 @@ body {
 }
 
 .journal-list li {
-  background: rgba(32, 32, 44, 0.92);
+  background: var(--journal-entry-bg);
   border-radius: 16px;
   padding: 1.1rem 1.2rem;
-  border: 1px solid rgba(255, 231, 179, 0.14);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 16px 28px rgba(5, 4, 14, 0.4);
+  border: 1px solid var(--journal-entry-border);
+  box-shadow: var(--journal-entry-shadow);
+  color: var(--journal-entry-text);
 }
 
 .journal-sublist {
@@ -795,7 +957,7 @@ body {
   align-items: flex-start;
   gap: 1rem;
   font-size: 0.9rem;
-  color: rgba(243, 244, 246, 0.88);
+  color: var(--journal-entry-text);
 }
 
 .journal-subtext {
@@ -834,6 +996,7 @@ body {
   max-width: 28rem;
 }
 
+html.modal-open,
 body.modal-open {
   overflow: hidden;
 }
