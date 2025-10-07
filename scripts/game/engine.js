@@ -213,9 +213,20 @@ function updateStatusSummary() {
   const clock = formatTime(worldState.hour, worldState.minute);
   const calendar = formatCalendarDate(worldState);
   if (statusSummaryElement) {
-    statusSummaryElement.textContent = `Hari ${worldState.day} (${calendar}) • ${clock} • ${
-      location?.name ?? "Lokasi tidak dikenal"
-    }`;
+    const summaryParts = [
+      `Hari ${worldState.day} (${calendar})`,
+      clock,
+      location?.name ?? "Lokasi tidak dikenal",
+    ];
+    const collectorDeadline = describeCollectorDeadline();
+    if (collectorDeadline) {
+      summaryParts.push(collectorDeadline);
+    }
+    const loanDeadline = describeLoanDeadline();
+    if (loanDeadline) {
+      summaryParts.push(loanDeadline);
+    }
+    statusSummaryElement.textContent = summaryParts.join(" • ");
   }
 }
 
@@ -321,6 +332,8 @@ function resolveActionOutcome(action, state) {
   const willpower = stats.willpower.value;
   const awareness = stats.awareness.value;
   const beauty = stats.beauty.value;
+  let freshForWork = false;
+  let focusedWillpower = false;
 
   if (traits.has("physical") || traits.has("care")) {
     if (fatigue >= 75) {
@@ -344,6 +357,7 @@ function resolveActionOutcome(action, state) {
     } else if (fatigue <= 35) {
       adjustChange(statusChanges, "money", (value) => value * 1.1);
       notes.push("Energi cukup membuat tempo kerjamu lebih cepat.");
+      freshForWork = true;
     }
   }
 
@@ -352,6 +366,7 @@ function resolveActionOutcome(action, state) {
       adjustChange(statusChanges, "stress", (value) => (value > 0 ? value * 0.7 : value * 1.15));
       incrementEffect(baseEffects, "willpower", 0.5);
       notes.push("Tekad tinggi membantumu tetap fokus di tengah tekanan.");
+      focusedWillpower = true;
     } else if (willpower <= 40) {
       adjustChange(statusChanges, "stress", (value) => (value > 0 ? value * 1.2 : value * 0.85));
       notes.push("Tekad yang melemah membuat tekanan terasa lebih berat.");
@@ -388,6 +403,11 @@ function resolveActionOutcome(action, state) {
       adjustChange(statusChanges, "stress", (value) => (value > 0 ? value * 1.1 : value * 0.85));
       notes.push("Rasa canggung sedikit mengurangi hasil interaksimu.");
     }
+  }
+
+  if (traits.has("work") && freshForWork && focusedWillpower) {
+    adjustChange(statusChanges, "money", (value) => value * 1.12);
+    notes.push("Tubuh segar dan tekad menyala membuat hasil lemburmu melesat.");
   }
 
   return { baseEffects, statusChanges, notes };
@@ -780,6 +800,28 @@ function renderScene(narratives = [], changeRecords = []) {
   if (storyElement && typeof storyElement.focus === "function") {
     storyElement.focus();
   }
+}
+
+function describeCollectorDeadline() {
+  if (worldState.flags.collectorUltimatum) {
+    return "Ultimatum kolektor: siapkan minimal Rp10.000.000";
+  }
+  if (worldState.flags.nextCollectorVisit) {
+    return `Tenggat kolektor: ${formatFutureSchedule(worldState.flags.nextCollectorVisit)}`;
+  }
+  if (!worldState.flags.debtCollectorKnock) {
+    return "Penagih tiba pukul 23.00";
+  }
+  return "";
+}
+
+function describeLoanDeadline() {
+  const outstanding = worldState.flags.dinaLoanOutstanding || 0;
+  const due = worldState.flags.dinaLoanDue;
+  if (outstanding > 0 && due) {
+    return `Cicilan Dina (${formatCurrency(outstanding)}): ${formatFutureSchedule(due)}`;
+  }
+  return "";
 }
 
 function performAction(id) {

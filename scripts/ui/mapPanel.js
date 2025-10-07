@@ -1,3 +1,5 @@
+import { locations } from "../story/locations.js";
+
 const layout = [
   { id: "halaman", label: "Halaman", row: 2, col: 1 },
   { id: "ruangKeluarga", label: "Ruang Keluarga", row: 2, col: 2 },
@@ -8,11 +10,20 @@ const layout = [
 
 let containerRef = null;
 const cellElements = new Map();
+const connectionElements = new Map();
+const gridRows = Math.max(...layout.map((room) => room.row));
+const gridCols = Math.max(...layout.map((room) => room.col));
+const GRID_UNIT = 100;
+
+function buildConnectionKey(a, b) {
+  return [a, b].sort().join("::");
+}
 
 export function initializeMiniMap(container) {
   if (!container) {
     containerRef = null;
     cellElements.clear();
+    connectionElements.clear();
     return;
   }
 
@@ -23,8 +34,14 @@ export function initializeMiniMap(container) {
 
   const grid = document.createElement("div");
   grid.className = "mini-map-grid";
-  grid.style.setProperty("--rows", 3);
-  grid.style.setProperty("--cols", 3);
+  grid.style.setProperty("--rows", String(gridRows));
+  grid.style.setProperty("--cols", String(gridCols));
+
+  const overlay = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  overlay.classList.add("mini-map-connections");
+  overlay.setAttribute("viewBox", `0 0 ${gridCols * GRID_UNIT} ${gridRows * GRID_UNIT}`);
+  overlay.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  connectionElements.clear();
 
   layout.forEach((room) => {
     const cell = document.createElement("div");
@@ -42,7 +59,38 @@ export function initializeMiniMap(container) {
     cellElements.set(room.id, cell);
   });
 
+  containerRef.appendChild(overlay);
   containerRef.appendChild(grid);
+
+  const positions = new Map();
+  layout.forEach((room) => {
+    positions.set(room.id, {
+      x: (room.col - 0.5) * GRID_UNIT,
+      y: (room.row - 0.5) * GRID_UNIT,
+    });
+  });
+
+  const seen = new Set();
+  Object.entries(locations).forEach(([fromId, location]) => {
+    if (!positions.has(fromId)) return;
+    (location.connections || []).forEach((targetId) => {
+      if (!positions.has(targetId)) return;
+      const key = buildConnectionKey(fromId, targetId);
+      if (seen.has(key)) return;
+      seen.add(key);
+      const start = positions.get(fromId);
+      const end = positions.get(targetId);
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", String(start.x));
+      line.setAttribute("y1", String(start.y));
+      line.setAttribute("x2", String(end.x));
+      line.setAttribute("y2", String(end.y));
+      line.dataset.from = fromId;
+      line.dataset.to = targetId;
+      overlay.appendChild(line);
+      connectionElements.set(key, line);
+    });
+  });
 }
 
 export function updateMiniMap(activeLocation) {
@@ -56,6 +104,16 @@ export function updateMiniMap(activeLocation) {
     } else {
       cell.classList.remove("active");
       cell.removeAttribute("aria-current");
+    }
+  });
+
+  connectionElements.forEach((line) => {
+    if (!line) return;
+    const { from, to } = line.dataset;
+    if (from === activeLocation || to === activeLocation) {
+      line.classList.add("active");
+    } else {
+      line.classList.remove("active");
     }
   });
 }

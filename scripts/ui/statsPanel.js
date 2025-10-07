@@ -20,6 +20,15 @@ export function initializeStatsUI(container, stats) {
     const card = document.createElement("article");
     card.className = "stat-card";
     card.dataset.stat = key;
+    if (stat.color) {
+      card.style.setProperty("--stat-color", stat.color);
+    }
+    if (stat.colorStrong) {
+      card.style.setProperty("--stat-color-strong", stat.colorStrong);
+    }
+    if (stat.colorSoft) {
+      card.style.setProperty("--stat-color-soft", stat.colorSoft);
+    }
     card.tabIndex = 0;
     card.setAttribute(
       "aria-label",
