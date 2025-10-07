@@ -931,16 +931,55 @@ var GameApp = (() => {
   // scripts/ui/journal.js
   var panelRef = null;
   var buttonRef = null;
+  var contentRef = null;
+  var closeButtonRef = null;
   var providerRef = () => [];
   var isOpen = false;
+  var previousFocus = null;
+  var openLabel = "Lihat Jurnal";
+  var closeLabel = "Tutup Jurnal";
+  var TITLE_ID = "journalDialogTitle";
+  var BODY_ID = "journalDialogBody";
   function initializeJournal(button, panel, provider) {
     buttonRef = button;
     panelRef = panel;
     providerRef = provider;
+    openLabel = buttonRef.textContent?.trim() || openLabel;
+    buttonRef.setAttribute("aria-haspopup", "dialog");
+    buttonRef.setAttribute("aria-controls", panelRef.id);
+    panelRef.classList.add("journal-panel");
     panelRef.setAttribute("role", "dialog");
     panelRef.setAttribute("aria-modal", "false");
+    panelRef.setAttribute("aria-labelledby", TITLE_ID);
+    panelRef.setAttribute("aria-describedby", BODY_ID);
+    panelRef.tabIndex = -1;
     panelRef.hidden = true;
     isOpen = false;
+    panelRef.innerHTML = `
+    <div class="journal-modal" role="document">
+      <header class="journal-modal__header">
+        <div class="journal-modal__titles">
+          <p class="journal-modal__subtitle">Catatan Strategi</p>
+          <h2 class="journal-modal__title" id="${TITLE_ID}">Jurnal Visi Ke Depan</h2>
+        </div>
+        <button type="button" class="journal-modal__close" aria-label="Tutup jurnal">
+          <span aria-hidden="true">\u2715</span>
+        </button>
+      </header>
+      <div class="journal-modal__body" id="${BODY_ID}"></div>
+    </div>
+  `;
+    contentRef = panelRef.querySelector(".journal-modal__body");
+    closeButtonRef = panelRef.querySelector(".journal-modal__close");
+    closeButtonRef?.addEventListener("click", () => {
+      closeJournal();
+    });
+    panelRef.addEventListener("click", (event) => {
+      if (event.target === panelRef) {
+        closeJournal();
+      }
+    });
+    panelRef.addEventListener("keydown", handleKeydown);
     updateVisibility();
     buttonRef.addEventListener("click", () => {
       isOpen = !isOpen;
@@ -950,26 +989,51 @@ var GameApp = (() => {
       }
     });
   }
+  function handleKeydown(event) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeJournal();
+    }
+  }
   function updateVisibility() {
     if (!panelRef || !buttonRef) return;
     panelRef.hidden = !isOpen;
+    panelRef.setAttribute("aria-modal", String(isOpen));
     buttonRef.setAttribute("aria-expanded", String(isOpen));
-    buttonRef.textContent = isOpen ? "Sembunyikan Jurnal" : "Lihat Jurnal";
+    buttonRef.textContent = isOpen ? closeLabel : openLabel;
+    if (isOpen) {
+      previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      document.body.classList.add("modal-open");
+      window.requestAnimationFrame(() => {
+        if (closeButtonRef) {
+          closeButtonRef.focus();
+        } else {
+          panelRef.focus();
+        }
+      });
+    } else {
+      document.body.classList.remove("modal-open");
+      if (previousFocus && typeof previousFocus.focus === "function") {
+        previousFocus.focus();
+      }
+      previousFocus = null;
+    }
   }
   function renderEntries() {
-    if (!panelRef) return;
+    if (!contentRef) return;
     const entries = providerRef() || [];
-    panelRef.innerHTML = "";
-    const heading = document.createElement("h2");
-    heading.textContent = "Jurnal Visi Ke Depan";
-    panelRef.appendChild(heading);
+    contentRef.innerHTML = "";
     if (!entries.length) {
       const empty = document.createElement("p");
       empty.className = "journal-empty";
-      empty.textContent = "Tidak ada kejadian yang terjadwal dalam waktu dekat.";
-      panelRef.appendChild(empty);
+      empty.textContent = "Jurnal masih kosong. Catatan akan muncul ketika ada agenda yang perlu diwaspadai.";
+      contentRef.appendChild(empty);
       return;
     }
+    const intro = document.createElement("p");
+    intro.className = "journal-description";
+    intro.textContent = "Catatan waktu dan ancaman penting yang perlu kamu ingat selama malam ini.";
+    contentRef.appendChild(intro);
     const list = document.createElement("ol");
     list.className = "journal-list";
     entries.forEach((entry) => {
@@ -984,7 +1048,7 @@ var GameApp = (() => {
       item.append(title, time, description);
       list.appendChild(item);
     });
-    panelRef.appendChild(list);
+    contentRef.appendChild(list);
   }
   function refreshJournal() {
     if (isOpen) {
@@ -1074,6 +1138,7 @@ var GameApp = (() => {
   var journalButton;
   var journalPanel;
   var miniMapContainer;
+  var statsPanelVisible = false;
   function initializeGame() {
     statsElement = document.getElementById("stats");
     statusSummaryElement = document.getElementById("statusSummary");
@@ -1092,16 +1157,7 @@ var GameApp = (() => {
     initializeMiniMap(miniMapContainer);
     initializeJournal(journalButton, journalPanel, () => buildJournalEntries());
     toggleStatsButton.addEventListener("click", () => {
-      const isHidden = statsElement.hasAttribute("hidden");
-      if (isHidden) {
-        statsElement.removeAttribute("hidden");
-        toggleStatsButton.setAttribute("aria-expanded", "true");
-        toggleStatsButton.textContent = "Sembunyikan Stat Karakter";
-      } else {
-        statsElement.setAttribute("hidden", "");
-        toggleStatsButton.setAttribute("aria-expanded", "false");
-        toggleStatsButton.textContent = "Tampilkan Stat Karakter";
-      }
+      setStatsPanelVisibility(!statsPanelVisible);
     });
     restartButton.addEventListener("click", () => {
       resetGame();
@@ -1183,9 +1239,7 @@ var GameApp = (() => {
     updateStatusPanel(worldState);
     updateMiniMap(worldState.location);
     feedbackElement.innerHTML = "";
-    statsElement.setAttribute("hidden", "");
-    toggleStatsButton.setAttribute("aria-expanded", "false");
-    toggleStatsButton.textContent = "Tampilkan Stat Karakter";
+    setStatsPanelVisibility(false);
     closeJournal();
     const introText = "Sudah lewat tengah malam. Rumah kecilmu sunyi, hanya terdengar napas berat Ayah dari kamar. Para penagih masih berjaga di depan pagar.";
     renderScene([introText], []);
@@ -1791,13 +1845,6 @@ var GameApp = (() => {
         description: `Sisa pinjaman ${formatCurrency(worldState.flags.dinaLoanOutstanding)}. Kirim cicilan agar kepercayaan tetap terjaga.`
       });
     }
-    if (!entries.length) {
-      entries.push({
-        title: "Tenang sejenak",
-        time: "Tidak ada tenggat dekat",
-        description: "Manfaatkan waktu ini untuk memulihkan tenaga dan menyusun strategi jangka panjang."
-      });
-    }
     return entries;
   }
   function formatFutureSchedule(schedule) {
@@ -1811,6 +1858,23 @@ var GameApp = (() => {
     }
     const days = Math.floor(diffHours / 24);
     return `Dalam ${days} hari pukul ${formatTime(schedule.hour)}`;
+  }
+  function setStatsPanelVisibility(visible) {
+    statsPanelVisible = Boolean(visible);
+    if (!statsElement || !toggleStatsButton) {
+      return;
+    }
+    if (statsPanelVisible) {
+      statsElement.hidden = false;
+      statsElement.removeAttribute("hidden");
+    } else {
+      statsElement.hidden = true;
+      if (!statsElement.hasAttribute("hidden")) {
+        statsElement.setAttribute("hidden", "");
+      }
+    }
+    toggleStatsButton.setAttribute("aria-expanded", statsPanelVisible ? "true" : "false");
+    toggleStatsButton.textContent = statsPanelVisible ? "Sembunyikan Stat Karakter" : "Tampilkan Stat Karakter";
   }
 
   // scripts/main.js

@@ -31,6 +31,7 @@ let toggleStatsButton;
 let journalButton;
 let journalPanel;
 let miniMapContainer;
+let statsPanelVisible = false;
 
 export function initializeGame() {
   statsElement = document.getElementById("stats");
@@ -52,16 +53,7 @@ export function initializeGame() {
   initializeJournal(journalButton, journalPanel, () => buildJournalEntries());
 
   toggleStatsButton.addEventListener("click", () => {
-    const isHidden = statsElement.hasAttribute("hidden");
-    if (isHidden) {
-      statsElement.removeAttribute("hidden");
-      toggleStatsButton.setAttribute("aria-expanded", "true");
-      toggleStatsButton.textContent = "Sembunyikan Stat Karakter";
-    } else {
-      statsElement.setAttribute("hidden", "");
-      toggleStatsButton.setAttribute("aria-expanded", "false");
-      toggleStatsButton.textContent = "Tampilkan Stat Karakter";
-    }
+    setStatsPanelVisibility(!statsPanelVisible);
   });
 
   restartButton.addEventListener("click", () => {
@@ -149,9 +141,7 @@ function resetGame() {
   updateStatusPanel(worldState);
   updateMiniMap(worldState.location);
   feedbackElement.innerHTML = "";
-  statsElement.setAttribute("hidden", "");
-  toggleStatsButton.setAttribute("aria-expanded", "false");
-  toggleStatsButton.textContent = "Tampilkan Stat Karakter";
+  setStatsPanelVisibility(false);
   closeJournal();
 
   const introText =
@@ -864,14 +854,6 @@ function buildJournalEntries() {
     });
   }
 
-  if (!entries.length) {
-    entries.push({
-      title: "Tenang sejenak",
-      time: "Tidak ada tenggat dekat",
-      description: "Manfaatkan waktu ini untuk memulihkan tenaga dan menyusun strategi jangka panjang.",
-    });
-  }
-
   return entries;
 }
 
@@ -889,3 +871,25 @@ function formatFutureSchedule(schedule) {
 }
 
 export { performAction, moveTo };
+
+function setStatsPanelVisibility(visible) {
+  statsPanelVisible = Boolean(visible);
+  if (!statsElement || !toggleStatsButton) {
+    return;
+  }
+
+  if (statsPanelVisible) {
+    statsElement.hidden = false;
+    statsElement.removeAttribute("hidden");
+  } else {
+    statsElement.hidden = true;
+    if (!statsElement.hasAttribute("hidden")) {
+      statsElement.setAttribute("hidden", "");
+    }
+  }
+
+  toggleStatsButton.setAttribute("aria-expanded", statsPanelVisible ? "true" : "false");
+  toggleStatsButton.textContent = statsPanelVisible
+    ? "Sembunyikan Stat Karakter"
+    : "Tampilkan Stat Karakter";
+}
