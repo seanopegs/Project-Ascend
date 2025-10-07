@@ -1,4 +1,8 @@
 export function renderFeedback(container, aggregatedChanges, insights, getMetadata, defaultFormatter) {
+  if (!container) {
+    return;
+  }
+
   container.innerHTML = "";
 
   if (aggregatedChanges.length) {

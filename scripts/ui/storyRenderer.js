@@ -1,4 +1,8 @@
 export function setStoryText(container, content) {
+  if (!container) {
+    return;
+  }
+
   container.innerHTML = "";
   const paragraphs = Array.isArray(content)
     ? content.filter(Boolean)

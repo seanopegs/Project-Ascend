@@ -693,6 +693,11 @@ var GameApp = (() => {
   var statElements = /* @__PURE__ */ new Map();
   var containerRef = null;
   function initializeStatsUI(container, stats2) {
+    if (!container) {
+      containerRef = null;
+      statElements.clear();
+      return;
+    }
     containerRef = container;
     containerRef.innerHTML = "";
     statElements.clear();
@@ -740,6 +745,9 @@ var GameApp = (() => {
     });
   }
   function updateStatsUI(stats2) {
+    if (!statElements.size) {
+      return;
+    }
     statsOrder.forEach((key) => {
       const stat = stats2[key];
       const elements = statElements.get(key);
@@ -771,6 +779,11 @@ var GameApp = (() => {
   var statusElements = /* @__PURE__ */ new Map();
   var containerRef2 = null;
   function initializeStatusPanel(container, worldState2) {
+    if (!container) {
+      containerRef2 = null;
+      statusElements.clear();
+      return;
+    }
     containerRef2 = container;
     containerRef2.innerHTML = "";
     statusElements.clear();
@@ -809,6 +822,9 @@ var GameApp = (() => {
     updateStatusPanel(worldState2);
   }
   function updateStatusPanel(worldState2) {
+    if (!statusElements.size) {
+      return;
+    }
     statusOrder.forEach((key) => {
       const meta = statusConfig[key];
       const elements = statusElements.get(key);
@@ -831,6 +847,9 @@ var GameApp = (() => {
 
   // scripts/ui/feedbackPanel.js
   function renderFeedback(container, aggregatedChanges, insights, getMetadata, defaultFormatter) {
+    if (!container) {
+      return;
+    }
     container.innerHTML = "";
     if (aggregatedChanges.length) {
       const heading = document.createElement("h2");
@@ -873,6 +892,9 @@ var GameApp = (() => {
 
   // scripts/ui/storyRenderer.js
   function setStoryText(container, content) {
+    if (!container) {
+      return;
+    }
     container.innerHTML = "";
     const paragraphs = Array.isArray(content) ? content.filter(Boolean) : String(content).split("\n").map((paragraph) => paragraph.trim()).filter(Boolean);
     paragraphs.forEach((paragraph) => {
@@ -893,6 +915,11 @@ var GameApp = (() => {
   var containerRef3 = null;
   var cellElements = /* @__PURE__ */ new Map();
   function initializeMiniMap(container) {
+    if (!container) {
+      containerRef3 = null;
+      cellElements.clear();
+      return;
+    }
     containerRef3 = container;
     containerRef3.innerHTML = "";
     containerRef3.setAttribute("role", "img");
@@ -917,6 +944,9 @@ var GameApp = (() => {
     containerRef3.appendChild(grid);
   }
   function updateMiniMap(activeLocation) {
+    if (!cellElements.size) {
+      return;
+    }
     cellElements.forEach((cell, id) => {
       if (id === activeLocation) {
         cell.classList.add("active");
@@ -1158,6 +1188,18 @@ var GameApp = (() => {
   var journalPanel;
   var miniMapContainer;
   var statsPanelVisible = false;
+  function disableControl(button, message) {
+    if (!button) {
+      return;
+    }
+    button.disabled = true;
+    button.setAttribute("aria-disabled", "true");
+    button.setAttribute("aria-expanded", "false");
+    button.setAttribute("aria-pressed", "false");
+    if (message) {
+      button.title = message;
+    }
+  }
   function initializeGame() {
     statsElement = document.getElementById("stats");
     statusSummaryElement = document.getElementById("statusSummary");
@@ -1173,20 +1215,34 @@ var GameApp = (() => {
     if (toggleStatsButton && statsElement) {
       toggleStatsButton.setAttribute("aria-controls", statsElement.id);
       statsPanelVisible = !statsElement.hasAttribute("hidden");
+    } else if (toggleStatsButton && !statsElement) {
+      disableControl(toggleStatsButton, "Panel stat tidak ditemukan.");
     }
     buildMetadata();
-    initializeStatsUI(statsElement, stats);
-    initializeStatusPanel(statusMetricsElement, worldState);
-    initializeMiniMap(miniMapContainer);
-    initializeJournal(journalButton, journalPanel, () => buildJournalEntries());
+    if (statsElement) {
+      initializeStatsUI(statsElement, stats);
+    }
+    if (statusMetricsElement) {
+      initializeStatusPanel(statusMetricsElement, worldState);
+    }
+    if (miniMapContainer) {
+      initializeMiniMap(miniMapContainer);
+    }
+    if (journalButton && journalPanel) {
+      initializeJournal(journalButton, journalPanel, () => buildJournalEntries());
+    } else if (journalButton && !journalPanel) {
+      disableControl(journalButton, "Panel jurnal tidak ditemukan.");
+    }
     if (toggleStatsButton && statsElement) {
       toggleStatsButton.addEventListener("click", () => {
         setStatsPanelVisibility(!statsPanelVisible);
       });
     }
-    restartButton.addEventListener("click", () => {
-      resetGame();
-    });
+    if (restartButton) {
+      restartButton.addEventListener("click", () => {
+        resetGame();
+      });
+    }
     resetGame();
   }
   function buildMetadata() {
@@ -1261,9 +1317,13 @@ var GameApp = (() => {
     currentEnding = null;
     resetStats();
     updateStatusSummary();
-    updateStatusPanel(worldState);
+    if (statusMetricsElement) {
+      updateStatusPanel(worldState);
+    }
     updateMiniMap(worldState.location);
-    feedbackElement.innerHTML = "";
+    if (feedbackElement) {
+      feedbackElement.innerHTML = "";
+    }
     setStatsPanelVisibility(false);
     closeJournal();
     const introText = "Sudah lewat tengah malam. Rumah kecilmu sunyi, hanya terdengar napas berat Ayah dari kamar. Para penagih masih berjaga di depan pagar.";
@@ -1273,7 +1333,9 @@ var GameApp = (() => {
     const location = locations[worldState.location];
     const clock = formatTime(worldState.hour, worldState.minute);
     const calendar = formatCalendarDate(worldState);
-    statusSummaryElement.textContent = `Hari ${worldState.day} (${calendar}) \u2022 ${clock} \u2022 ${location?.name ?? "Lokasi tidak dikenal"}`;
+    if (statusSummaryElement) {
+      statusSummaryElement.textContent = `Hari ${worldState.day} (${calendar}) \u2022 ${clock} \u2022 ${location?.name ?? "Lokasi tidak dikenal"}`;
+    }
   }
   function applyEffects(effects = {}) {
     if (!effects) return [];
@@ -1323,7 +1385,9 @@ var GameApp = (() => {
       }
     });
     if (results.length) {
-      updateStatusPanel(worldState);
+      if (statusMetricsElement) {
+        updateStatusPanel(worldState);
+      }
       updateStatusSummary();
     }
     return results;
@@ -1505,7 +1569,9 @@ var GameApp = (() => {
         aggregate.trauma = (aggregate.trauma || 0) + applyStatusDelta("trauma", 0.6 * portion);
       }
     }
-    updateStatusPanel(worldState);
+    if (statusMetricsElement) {
+      updateStatusPanel(worldState);
+    }
     updateStatusSummary();
     return Object.entries(aggregate).map(([key, amount]) => ({ key, amount: normalizeValue(amount) })).filter((entry) => entry.amount !== 0);
   }
@@ -1553,12 +1619,17 @@ var GameApp = (() => {
       worldState.flags.triggeredEvents[event.id] = true;
     });
     if (narratives.length) {
-      updateStatusPanel(worldState);
+      if (statusMetricsElement) {
+        updateStatusPanel(worldState);
+      }
       updateStatusSummary();
     }
     return { narratives, changes: changeRecords };
   }
   function renderChoicesForLocation(location) {
+    if (!choicesElement) {
+      return;
+    }
     choicesElement.innerHTML = "";
     const actionRefs = location.actions || [];
     actionRefs.forEach((actionRef) => {
@@ -1700,18 +1771,22 @@ var GameApp = (() => {
   }
   function renderScene(narratives = [], changeRecords = []) {
     updateStatusSummary();
-    updateStatusPanel(worldState);
+    if (statusMetricsElement) {
+      updateStatusPanel(worldState);
+    }
     updateMiniMap(worldState.location);
     refreshJournal();
     const aggregated = aggregateChanges(changeRecords);
     const insights = getInsights();
-    renderFeedback(
-      feedbackElement,
-      aggregated,
-      insights,
-      (key) => allStatsMetadata.get(key),
-      formatChange
-    );
+    if (feedbackElement) {
+      renderFeedback(
+        feedbackElement,
+        aggregated,
+        insights,
+        (key) => allStatsMetadata.get(key),
+        formatChange
+      );
+    }
     const location = locations[worldState.location];
     const paragraphs = [];
     const clock = formatTime(worldState.hour, worldState.minute);
@@ -1728,20 +1803,30 @@ var GameApp = (() => {
         paragraphs.push(text);
       }
     });
-    setStoryText(storyElement, paragraphs);
+    if (storyElement) {
+      setStoryText(storyElement, paragraphs);
+    }
     if (gameEnded) {
-      choicesElement.innerHTML = "";
-      const endingLabel = document.createElement("p");
-      endingLabel.className = "subtitle";
-      endingLabel.textContent = currentEnding?.label ?? "Permainan Berakhir";
-      choicesElement.appendChild(endingLabel);
-      restartButton.hidden = false;
-      restartButton.focus();
+      if (choicesElement) {
+        choicesElement.innerHTML = "";
+        const endingLabel = document.createElement("p");
+        endingLabel.className = "subtitle";
+        endingLabel.textContent = currentEnding?.label ?? "Permainan Berakhir";
+        choicesElement.appendChild(endingLabel);
+      }
+      if (restartButton) {
+        restartButton.hidden = false;
+        restartButton.focus();
+      }
       return;
     }
     renderChoicesForLocation(location ?? { actions: [], connections: [] });
-    restartButton.hidden = true;
-    storyElement.focus();
+    if (restartButton) {
+      restartButton.hidden = true;
+    }
+    if (storyElement && typeof storyElement.focus === "function") {
+      storyElement.focus();
+    }
   }
   function performAction(id) {
     if (gameEnded) return;

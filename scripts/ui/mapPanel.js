@@ -10,6 +10,12 @@ let containerRef = null;
 const cellElements = new Map();
 
 export function initializeMiniMap(container) {
+  if (!container) {
+    containerRef = null;
+    cellElements.clear();
+    return;
+  }
+
   containerRef = container;
   containerRef.innerHTML = "";
   containerRef.setAttribute("role", "img");
@@ -40,6 +46,9 @@ export function initializeMiniMap(container) {
 }
 
 export function updateMiniMap(activeLocation) {
+  if (!cellElements.size) {
+    return;
+  }
   cellElements.forEach((cell, id) => {
     if (id === activeLocation) {
       cell.classList.add("active");
