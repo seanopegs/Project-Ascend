@@ -123,6 +123,13 @@ body {
   font-size: 1rem;
 }
 
+.status-description {
+  margin: 0;
+  font-size: 0.78rem;
+  color: rgba(248, 250, 252, 0.68);
+  line-height: 1.4;
+}
+
 .status-card--meter .status-value {
   font-size: 0.95rem;
 }
@@ -346,6 +353,21 @@ body {
   background: rgba(248, 250, 252, 0.8);
   padding: 0.15rem 0.55rem;
   border-radius: 999px;
+}
+
+.choice-duration {
+  font-size: 0.78rem;
+  color: rgba(248, 250, 252, 0.85);
+  font-weight: 500;
+}
+
+.choice-note {
+  font-size: 0.78rem;
+  color: rgba(248, 250, 252, 0.78);
+  background: rgba(15, 23, 42, 0.55);
+  padding: 0.35rem 0.55rem;
+  border-radius: 8px;
+  border-left: 3px solid rgba(56, 189, 248, 0.6);
 }
 
 .restart {

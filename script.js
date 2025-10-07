@@ -112,6 +112,22 @@ const stats = Object.fromEntries(
 
 const statElements = new Map();
 
+const weekdays = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+const months = [
+  "Januari",
+  "Februari",
+  "Maret",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Agustus",
+  "September",
+  "Oktober",
+  "November",
+  "Desember",
+];
+
 function formatCurrency(value) {
   const rounded = Math.round(value);
   const prefix = rounded < 0 ? "-Rp" : "Rp";
@@ -153,6 +169,13 @@ const statusConfig = {
     positiveIsGood: true,
     formatValue: (value) => `${Math.round(value)}%`,
     formatChange: (amount) => formatSignedPercent(amount, 1),
+    describeState: (value) => {
+      if (value >= 85) return "Ayah bernafas stabil dan demamnya mulai turun.";
+      if (value >= 65) return "Perawatanmu membuat kondisinya cukup terkendali.";
+      if (value >= 45) return "Ayah masih demam; butuh pengawasan rutin.";
+      if (value >= 25) return "Napasnya berat—perlu tindakan segera dan kompres baru.";
+      return "Ayah kritis, segera cari bantuan medis.";
+    },
   },
   stress: {
     alias: "Stres",
@@ -162,6 +185,12 @@ const statusConfig = {
     positiveIsGood: false,
     formatValue: (value) => `${Math.round(value)}/100`,
     formatChange: (amount) => formatSignedNumber(amount, 1),
+    describeState: (value) => {
+      if (value <= 25) return "Pikiranmu cukup jernih untuk mengambil keputusan.";
+      if (value <= 50) return "Ada tekanan, tapi masih bisa kamu kendalikan.";
+      if (value <= 75) return "Stres menumpuk—carilah ruang untuk menenangkan diri.";
+      return "Stres memuncak dan bisa memicu keputusan impulsif.";
+    },
   },
   fatigue: {
     alias: "Fatigue",
@@ -171,6 +200,12 @@ const statusConfig = {
     positiveIsGood: false,
     formatValue: (value) => `${Math.round(value)}/100`,
     formatChange: (amount) => formatSignedNumber(amount, 1),
+    describeState: (value) => {
+      if (value <= 25) return "Tubuhmu terasa bugar dan responsif.";
+      if (value <= 50) return "Tenaga mulai menurun, tapi masih bisa diajak kompromi.";
+      if (value <= 75) return "Kelelahan berat; tindakan fisik jadi lebih lambat.";
+      return "Tubuh hampir tumbang—prioritaskan istirahat segera.";
+    },
   },
   trauma: {
     alias: "Trauma",
@@ -180,24 +215,49 @@ const statusConfig = {
     positiveIsGood: false,
     formatValue: (value) => `${Math.round(value)}/100`,
     formatChange: (amount) => formatSignedNumber(amount, 1),
+    describeState: (value) => {
+      if (value <= 20) return "Mentalmu cukup kuat menghadapi tekanan.";
+      if (value <= 45) return "Ingatan buruk mulai mengusik fokusmu.";
+      if (value <= 70) return "Trauma aktif; cari dukungan atau teknik penenang.";
+      return "Beban trauma berat dan menggerogoti ketahananmu.";
+    },
   },
   money: {
     alias: "Uang Tunai",
     positiveIsGood: true,
     formatValue: (value) => formatCurrency(value),
     formatChange: (amount) => formatCurrencyChange(amount),
+    describeState: (value, state) => {
+      if (value >= 10_000_000) return "Kas cukup untuk menutup beberapa cicilan ke depan.";
+      if (value >= 5_000_000) return "Ada ruang gerak untuk negosiasi dalam waktu dekat.";
+      if (value >= 1_000_000) return "Dana minim—alokasikan dengan hati-hati.";
+      if (value > 0) return "Sisa uang hampir habis, setiap keputusan sangat berisiko.";
+      return "Kas kosong; perlu pemasukan darurat atau bantuan.";
+    },
   },
   debt: {
     alias: "Utang Aktif",
     positiveIsGood: false,
     formatValue: (value) => formatCurrency(value),
     formatChange: (amount) => formatCurrencyChange(amount),
+    describeState: (value) => {
+      if (value <= 20_000_000) return "Utang tinggal sedikit lagi untuk dilunasi.";
+      if (value <= 50_000_000) return "Kemajuan terasa; teruskan strategi pembayaranmu.";
+      if (value <= 80_000_000) return "Utang masih besar tapi mulai terkontrol.";
+      return "Bunga membuat utang makin berat—butuh rencana agresif.";
+    },
   },
   debtInterestRate: {
     alias: "Bunga Harian",
     positiveIsGood: false,
     formatValue: (value) => `${(value * 100).toFixed(2)}%`,
     formatChange: (amount) => formatSignedPercent(amount * 100, 2),
+    describeState: (value) => {
+      if (value <= 0.005) return "Bunga lunak—tahan sampai cicilan lunas.";
+      if (value <= 0.01) return "Bunga masih bisa dinegosiasikan.";
+      if (value <= 0.02) return "Bunga mencekik, pertimbangkan renegosiasi.";
+      return "Bunga sangat tinggi dan menguras pembayaranmu.";
+    },
   },
 };
 
@@ -219,7 +279,7 @@ statsOrder.forEach((key) => {
   const stat = stats[key];
   allStatsMetadata.set(key, {
     alias: stat.alias,
-    formatChange: (amount) => formatChange(Math.round(amount)),
+    formatChange: (amount) => formatChange(Number(amount.toFixed(1))),
     positiveIsGood: true,
   });
 });
@@ -314,8 +374,14 @@ function initializeStatusUI() {
       card.appendChild(meter);
     }
 
+    const description = document.createElement("p");
+    description.className = "status-description";
+    const initialValue = Number(worldState[key] ?? meta.min ?? 0);
+    description.textContent = meta.describeState?.(initialValue, worldState) ?? "";
+    card.appendChild(description);
+
     statusMetricsElement.appendChild(card);
-    statusElements.set(key, { card, value, meterFill });
+    statusElements.set(key, { card, value, meterFill, description });
   });
 }
 
@@ -337,7 +403,9 @@ function updateStatsUI() {
 
 function updateStatusUI() {
   const location = locations[worldState.location];
-  statusSummaryElement.textContent = `Hari ${worldState.day} • ${formatTime(worldState.hour)} • ${
+  const clock = formatTime(worldState.hour, worldState.minute);
+  const calendar = formatCalendarDate(worldState);
+  statusSummaryElement.textContent = `Hari ${worldState.day} (${calendar}) • ${clock} • ${
     location?.name ?? "Lokasi tidak dikenal"
   }`;
 
@@ -352,6 +420,11 @@ function updateStatusUI() {
       const max = typeof meta.max === "number" ? meta.max : 100;
       const percent = ((value - min) / (max - min)) * 100;
       elements.meterFill.style.width = `${clamp(percent, 0, 100)}%`;
+    }
+    if (elements.description) {
+      const description = meta.describeState?.(value, worldState) ?? "";
+      elements.description.textContent = description;
+      elements.description.hidden = !description;
     }
   });
 }
@@ -379,8 +452,12 @@ function applyEffects(effects = {}) {
     const previous = stat.value;
     const next = clamp(previous + amount, 0, stat.max);
     if (next !== previous) {
-      stat.value = next;
-      changes.push({ key, amount: Math.round(next - previous) });
+      const delta = next - previous;
+      const normalizedDelta = normalizeValue(delta);
+      if (normalizedDelta !== 0) {
+        stat.value = Number(next.toFixed(2));
+        changes.push({ key, amount: normalizedDelta });
+      }
     }
   });
   if (changes.length) {
@@ -435,6 +512,130 @@ function describeCombinedEffects(baseEffects = {}, statusEffects = {}) {
 
 function formatChange(amount) {
   return amount > 0 ? `+${amount}` : String(amount);
+}
+
+function cloneEffects(effects = {}) {
+  return Object.fromEntries(Object.entries(effects || {}).map(([key, value]) => [key, value]));
+}
+
+function normalizeValue(value) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  const rounded = Number(value.toFixed(2));
+  return Math.abs(rounded) < 0.01 ? 0 : rounded;
+}
+
+function adjustChange(target, key, transformer) {
+  if (!Object.prototype.hasOwnProperty.call(target, key)) {
+    return;
+  }
+  const next = normalizeValue(transformer(target[key]));
+  if (next === 0) {
+    delete target[key];
+  } else {
+    target[key] = next;
+  }
+}
+
+function adjustMultiple(target, keys, transformer) {
+  keys.forEach((key) => adjustChange(target, key, transformer));
+}
+
+function incrementEffect(target, key, amount) {
+  const next = normalizeValue((target[key] || 0) + amount);
+  if (next === 0) {
+    delete target[key];
+  } else {
+    target[key] = next;
+  }
+}
+
+function resolveActionOutcome(action, state) {
+  const rawBaseEffects =
+    typeof action.baseEffects === "function" ? action.baseEffects(state) : action.baseEffects || {};
+  const rawStatusChanges =
+    typeof action.statusChanges === "function" ? action.statusChanges(state) : action.statusChanges || {};
+  const baseEffects = cloneEffects(rawBaseEffects);
+  const statusChanges = cloneEffects(rawStatusChanges);
+  const notes = [];
+  const traits = new Set(action.traits || []);
+
+  const fatigue = state.fatigue;
+  const stressLevel = state.stress;
+  const willpower = stats.willpower.value;
+  const awareness = stats.awareness.value;
+  const beauty = stats.beauty.value;
+
+  if (traits.has("physical") || traits.has("care")) {
+    if (fatigue >= 75) {
+      adjustMultiple(statusChanges, ["fatherHealth"], (value) => value * 0.65);
+      adjustChange(statusChanges, "stress", (value) => (value < 0 ? value * 0.7 : value * 1.15));
+      adjustChange(statusChanges, "fatigue", (value) => value + 2.5);
+      notes.push("Kelelahan tinggi membuat gerakanmu melambat dan hasilnya berkurang.");
+    } else if (fatigue <= 30) {
+      adjustMultiple(statusChanges, ["fatherHealth"], (value) => value * 1.2);
+      adjustChange(statusChanges, "stress", (value) => (value < 0 ? value * 1.25 : value * 0.85));
+      adjustChange(statusChanges, "fatigue", (value) => value - 2);
+      notes.push("Tubuh yang masih segar membuat upaya fisikmu lebih efektif.");
+    }
+  }
+
+  if (traits.has("work")) {
+    if (fatigue >= 65) {
+      adjustChange(statusChanges, "money", (value) => value * 0.85);
+      adjustChange(statusChanges, "stress", (value) => (value > 0 ? value * 1.1 : value));
+      notes.push("Kelelahan menurunkan produktivitas kerjamu.");
+    } else if (fatigue <= 35) {
+      adjustChange(statusChanges, "money", (value) => value * 1.1);
+      notes.push("Energi cukup membuat tempo kerjamu lebih cepat.");
+    }
+  }
+
+  if (traits.has("mental") || traits.has("planning") || traits.has("work")) {
+    if (willpower >= 65) {
+      adjustChange(statusChanges, "stress", (value) => (value > 0 ? value * 0.7 : value * 1.15));
+      incrementEffect(baseEffects, "willpower", 0.5);
+      notes.push("Tekad tinggi membantumu tetap fokus di tengah tekanan.");
+    } else if (willpower <= 40) {
+      adjustChange(statusChanges, "stress", (value) => (value > 0 ? value * 1.2 : value * 0.85));
+      notes.push("Tekad yang melemah membuat tekanan terasa lebih berat.");
+    }
+  }
+
+  if (traits.has("planning") || traits.has("documentation")) {
+    if (awareness >= 65) {
+      incrementEffect(baseEffects, "awareness", 1);
+      adjustChange(statusChanges, "stress", (value) => (value > 0 ? value * 0.85 : value));
+      notes.push("Kewaspadaan tinggi memudahkanmu memilah informasi penting.");
+    } else if (awareness <= 35) {
+      adjustChange(statusChanges, "stress", (value) => (value > 0 ? value * 1.15 : value * 0.9));
+      notes.push("Kurang fokus membuat analisis terasa melelahkan.");
+    }
+  }
+
+  if (traits.has("recovery")) {
+    if (stressLevel >= 80) {
+      adjustChange(statusChanges, "fatigue", (value) => value * 0.8);
+      adjustChange(statusChanges, "stress", (value) => (value < 0 ? value * 0.9 : value));
+      notes.push("Stres tinggi membuat pemulihan tidak maksimal.");
+    } else if (willpower >= 65) {
+      adjustChange(statusChanges, "stress", (value) => (value < 0 ? value * 1.2 : value));
+      notes.push("Teknik fokus membantu pemulihan lebih dalam.");
+    }
+  }
+
+  if (traits.has("social")) {
+    if (beauty >= 60) {
+      adjustChange(statusChanges, "stress", (value) => (value < 0 ? value * 1.2 : value * 0.9));
+      notes.push("Pembawaan percaya diri membuat interaksi berjalan mulus.");
+    } else if (beauty <= 35) {
+      adjustChange(statusChanges, "stress", (value) => (value > 0 ? value * 1.1 : value * 0.85));
+      notes.push("Rasa canggung sedikit mengurangi hasil interaksimu.");
+    }
+  }
+
+  return { baseEffects, statusChanges, notes };
 }
 
 function renderFeedback(changes) {
@@ -502,24 +703,45 @@ function getInsights() {
 
   if (worldState.fatigue >= 70) {
     hints.push("Kelelahanmu ekstrem. Istirahat sejenak dapat mencegah tubuh tumbang.");
+  } else if (worldState.fatigue <= 25) {
+    hints.push("Energi tubuh cukup untuk menangani pekerjaan yang berat.");
   }
 
   if (worldState.trauma >= 60) {
     hints.push("Trauma mendekati batas aman. Cari dukungan emosional untuk menjaga ketahanan mental.");
+  } else if (worldState.trauma <= 20) {
+    hints.push("Ketahanan mentalmu stabil—manfaatkan untuk negosiasi yang menegangkan.");
   }
 
-  if (worldState.money >= 5000000 && worldState.debt > 0) {
+  if (worldState.money >= 5_000_000 && worldState.debt > 0) {
     hints.push("Dana yang ada cukup untuk menawar cicilan darurat agar penagih mereda.");
   }
 
-  if (worldState.debt <= 40000000) {
+  if (worldState.debt <= 40_000_000) {
     hints.push("Utang mulai terpangkas signifikan. Jaga momentum pembayaranmu.");
-  } else if (worldState.debt >= 90000000) {
+  } else if (worldState.debt >= 90_000_000) {
     hints.push("Bunga membuat utang membengkak. Pertimbangkan langkah agresif atau negosiasi baru.");
   }
 
   if (worldState.flags.awaitingDina && !worldState.flags.dinaArrived) {
     hints.push("Dina dalam perjalanan membawa bantuan; siapkan daftar kebutuhan yang ingin kamu sampaikan.");
+  }
+
+  const dinaOutstanding = worldState.flags.dinaLoanOutstanding || 0;
+  if (dinaOutstanding > 0 && worldState.flags.dinaArrived) {
+    const due = worldState.flags.dinaLoanDue;
+    if (due) {
+      const hoursRemaining = (due.day - worldState.day) * 24 + (due.hour - worldState.hour);
+      if (hoursRemaining <= 0) {
+        hints.push("Dina menunggu kabar pembayaran—segera kirim cicilan agar kepercayaannya terjaga.");
+      } else if (hoursRemaining <= 24) {
+        hints.push("Jatuh tempo cicilan Dina tinggal kurang dari sehari. Sisihkan dana sekarang.");
+      } else {
+        hints.push(`Sisa pinjaman Dina ${formatCurrency(dinaOutstanding)}. Atur cicilan sebelum tenggat berikutnya.`);
+      }
+    }
+  } else if (worldState.flags.dinaArrived && dinaOutstanding === 0) {
+    hints.push("Pinjaman Dina sudah lunas—kamu bebas fokus ke strategi jangka panjang.");
   }
 
   if (stats.awareness.value >= 65) {
@@ -574,9 +796,52 @@ function setStoryText(content) {
   });
 }
 
-function formatTime(hour) {
-  const normalized = ((hour % 24) + 24) % 24;
-  return `${String(normalized).padStart(2, "0")}:00`;
+function formatTime(hour, minute = 0) {
+  const normalizedHour = ((Math.floor(hour) % 24) + 24) % 24;
+  const normalizedMinute = ((minute % 60) + 60) % 60;
+  return `${String(normalizedHour).padStart(2, "0")}:${String(normalizedMinute).padStart(2, "0")}`;
+}
+
+function formatCalendarDate(state) {
+  const weekday = weekdays[state.weekdayIndex % weekdays.length];
+  const monthName = months[state.monthIndex % months.length];
+  return `${weekday}, ${state.dayOfMonth} ${monthName} ${state.year}`;
+}
+
+function formatDuration(hours = 1) {
+  const totalMinutes = Math.round(hours * 60);
+  if (totalMinutes < 60) {
+    return `${totalMinutes} menit`;
+  }
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  if (m === 0) {
+    return `${h} jam`;
+  }
+  return `${h} jam ${m} menit`;
+}
+
+function getDaysInMonth(monthIndex, year) {
+  const thirtyOne = new Set([0, 2, 4, 6, 7, 9, 11]);
+  if (monthIndex === 1) {
+    const isLeap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+    return isLeap ? 29 : 28;
+  }
+  return thirtyOne.has(monthIndex) ? 31 : 30;
+}
+
+function advanceCalendarDay(state) {
+  state.weekdayIndex = (state.weekdayIndex + 1) % weekdays.length;
+  state.dayOfMonth += 1;
+  const daysInMonth = getDaysInMonth(state.monthIndex, state.year);
+  if (state.dayOfMonth > daysInMonth) {
+    state.dayOfMonth = 1;
+    state.monthIndex += 1;
+    if (state.monthIndex >= months.length) {
+      state.monthIndex = 0;
+      state.year += 1;
+    }
+  }
 }
 
 function applyStatusDelta(key, delta) {
@@ -615,29 +880,42 @@ function advanceTime(hours = 1) {
     return [];
   }
   const aggregate = {};
-  for (let i = 0; i < hours; i += 1) {
-    worldState.hour += 1;
-    if (worldState.hour >= 24) {
-      worldState.hour = 0;
+  let remainingMinutes = Math.max(1, Math.round(hours * 60));
+  const stepMinutes = 15;
+
+  while (remainingMinutes > 0) {
+    const step = Math.min(stepMinutes, remainingMinutes);
+    remainingMinutes -= step;
+
+    worldState.minute += step;
+    while (worldState.minute >= 60) {
+      worldState.minute -= 60;
+      worldState.hour += 1;
+    }
+    while (worldState.hour >= 24) {
+      worldState.hour -= 24;
       worldState.day += 1;
+      advanceCalendarDay(worldState);
     }
 
-    const interest = worldState.debt * (worldState.debtInterestRate / 24);
+    const portion = step / 60;
+    const hourlyInterestRate = worldState.debtInterestRate / 24;
+    const interest = worldState.debt * hourlyInterestRate * portion;
     aggregate.debt = (aggregate.debt || 0) + applyStatusDelta("debt", interest);
 
     const stressGain = worldState.flags.safeWithSupport ? 0.4 : 0.9;
-    aggregate.stress = (aggregate.stress || 0) + applyStatusDelta("stress", stressGain);
+    aggregate.stress = (aggregate.stress || 0) + applyStatusDelta("stress", stressGain * portion);
 
-    aggregate.fatigue = (aggregate.fatigue || 0) + applyStatusDelta("fatigue", 1.4);
+    aggregate.fatigue = (aggregate.fatigue || 0) + applyStatusDelta("fatigue", 1.4 * portion);
 
-    worldState.hoursSinceFatherCare += 1;
+    worldState.hoursSinceFatherCare += portion;
     if (worldState.hoursSinceFatherCare >= 4) {
       aggregate.fatherHealth =
-        (aggregate.fatherHealth || 0) + applyStatusDelta("fatherHealth", -1.5);
+        (aggregate.fatherHealth || 0) + applyStatusDelta("fatherHealth", -1.5 * portion);
     }
 
     if (worldState.stress >= 80) {
-      aggregate.trauma = (aggregate.trauma || 0) + applyStatusDelta("trauma", 0.6);
+      aggregate.trauma = (aggregate.trauma || 0) + applyStatusDelta("trauma", 0.6 * portion);
     }
   }
 
@@ -651,7 +929,12 @@ function createInitialWorldState() {
   return {
     day: 1,
     hour: 22,
+    minute: 0,
     location: "ruangKeluarga",
+    weekdayIndex: 0,
+    dayOfMonth: 11,
+    monthIndex: 2,
+    year: 2024,
     money: 350_000,
     debt: 80_000_000,
     debtInterestRate: 0.015,
@@ -664,6 +947,9 @@ function createInitialWorldState() {
       triggeredEvents: {},
       awaitingDina: false,
       dinaArrived: false,
+      dinaSupportAvailable: false,
+      dinaLoanOutstanding: 0,
+      dinaLoanDue: null,
       planPrepared: false,
       planSent: false,
       hasChronology: false,
@@ -687,7 +973,8 @@ let currentEnding = null;
 const actionLibrary = {
   bacaTagihan: {
     label: "Teliti tumpukan tagihan",
-    time: 1,
+    time: 0.75,
+    traits: ["mental", "planning"],
     baseEffects: { awareness: 4, willpower: -1, deviancy: 1 },
     statusChanges: { stress: 3 },
     narrative: () =>
@@ -698,7 +985,8 @@ const actionLibrary = {
   },
   rekamKronologi: {
     label: "Susun kronologi intimidasi",
-    time: 1,
+    time: 0.5,
+    traits: ["mental", "documentation"],
     condition: (state) => !state.flags.hasChronology,
     baseEffects: { awareness: 2, exhibitionism: 1, sadism: 1 },
     statusChanges: { stress: -2 },
@@ -710,7 +998,8 @@ const actionLibrary = {
   },
   hubungiDina: {
     label: "Hubungi Dina minta bantuan",
-    time: 1,
+    time: 0.25,
+    traits: ["social"],
     condition: (state) => !state.flags.awaitingDina && !state.flags.dinaArrived,
     baseEffects: { promiscuity: 3, willpower: 1, beauty: 1 },
     statusChanges: { stress: -3 },
@@ -721,9 +1010,55 @@ const actionLibrary = {
       return "Ada harapan baru: Dina akan datang membawa bantuan dan makanan hangat.";
     },
   },
+  laporKeDina: {
+    label: "Lapor perkembangan ke Dina",
+    time: 0.5,
+    traits: ["social", "mental", "recovery"],
+    condition: (state) => state.flags.dinaArrived,
+    baseEffects: { promiscuity: 1, purity: 1, willpower: 1 },
+    statusChanges: { stress: -4, trauma: -2 },
+    narrative: () =>
+      "Kamu menelepon Dina, menjelaskan kondisi Ayah dan strategi pembayaranmu. Suaranya tenang dan menegaskan kamu tidak sendirian.",
+    after: (state) => {
+      state.flags.safeWithSupport = true;
+      state.flags.dinaSupportAvailable = true;
+      if ((state.flags.dinaLoanOutstanding || 0) > 0) {
+        state.flags.dinaLoanDue = { day: state.day + 5, hour: 20 };
+      }
+      return "Dina mencatat jadwal cicilanmu dan siap mengingatkan bila kamu lengah.";
+    },
+  },
+  cicilKeDina: {
+    label: "Transfer cicilan ke Dina (Rp500.000)",
+    time: 0.25,
+    traits: ["financial", "social"],
+    condition: (state) =>
+      state.flags.dinaArrived && (state.flags.dinaLoanOutstanding || 0) > 0 && state.money >= 500_000,
+    baseEffects: { purity: 1, willpower: 1 },
+    statusChanges: (state) => {
+      const outstanding = state.flags.dinaLoanOutstanding || 0;
+      const amount = Math.min(500_000, outstanding);
+      return { money: -amount, stress: -3 };
+    },
+    narrative: () =>
+      "Kamu mentransfer sejumlah uang ke rekening Dina dan menyisipkan pesan terima kasih serta update perkembangan.",
+    after: (state) => {
+      const outstanding = state.flags.dinaLoanOutstanding || 0;
+      const amount = Math.min(500_000, outstanding);
+      state.flags.dinaLoanOutstanding = Math.max(0, outstanding - amount);
+      if (state.flags.dinaLoanOutstanding <= 0) {
+        state.flags.dinaLoanOutstanding = 0;
+        state.flags.dinaLoanDue = null;
+        return "Pinjaman Dina lunas. Ia mengirim stiker pelukan dan meminta kamu fokus merawat Ayah.";
+      }
+      state.flags.dinaLoanDue = { day: state.day + 7, hour: 20 };
+      return `Sisa pinjaman ke Dina tinggal ${formatCurrency(state.flags.dinaLoanOutstanding)}.`;
+    },
+  },
   latihanNapas: {
     label: "Latihan pernapasan 4-7-8",
-    time: 1,
+    time: 0.25,
+    traits: ["recovery", "mental"],
     condition: (state) => state.stress >= 25,
     baseEffects: { willpower: 1, purity: 1 },
     statusChanges: { stress: -6, trauma: -2, fatigue: -1 },
@@ -732,7 +1067,8 @@ const actionLibrary = {
   },
   bayarDebtSebagian: {
     label: "Transfer cicilan darurat (Rp2.000.000)",
-    time: 1,
+    time: 0.25,
+    traits: ["financial", "mental"],
     condition: (state) => state.money >= 2_000_000 && state.debt > 0,
     baseEffects: { purity: 1, willpower: 1 },
     statusChanges: { money: -2_000_000, debt: -2_000_000, stress: -4 },
@@ -741,7 +1077,8 @@ const actionLibrary = {
   },
   periksaAyah: {
     label: "Periksa kondisi Ayah",
-    time: 1,
+    time: 0.5,
+    traits: ["care", "physical"],
     baseEffects: { purity: 2, masochism: 2, willpower: 1, beauty: 1 },
     statusChanges: { fatherHealth: 8, stress: -4, fatigue: 2 },
     narrative: () =>
@@ -752,7 +1089,8 @@ const actionLibrary = {
   },
   istirahatPendek: {
     label: "Rebah sejenak sambil berjaga",
-    time: 1,
+    time: 0.75,
+    traits: ["recovery"],
     condition: (state) => state.fatigue >= 25,
     baseEffects: { masochism: -1, willpower: 1 },
     statusChanges: { fatigue: -14, stress: -3 },
@@ -762,6 +1100,7 @@ const actionLibrary = {
   masakSup: {
     label: "Masak sup jahe hangat",
     time: 1,
+    traits: ["care", "physical"],
     baseEffects: { purity: 1, beauty: 1 },
     statusChanges: { fatigue: -5, stress: -2, fatherHealth: 3 },
     narrative: () =>
@@ -769,7 +1108,8 @@ const actionLibrary = {
   },
   siapkanObat: {
     label: "Siapkan obat dan air hangat",
-    time: 1,
+    time: 0.5,
+    traits: ["care", "mental"],
     condition: (state) => !state.flags.preparedMedicine,
     baseEffects: { purity: 1, masochism: 1 },
     statusChanges: { fatherHealth: 4, fatigue: 1 },
@@ -781,7 +1121,8 @@ const actionLibrary = {
   },
   pantauPenagih: {
     label: "Pantau penagih dari balik tirai",
-    time: 1,
+    time: 0.25,
+    traits: ["vigilance", "mental"],
     baseEffects: { awareness: 3, exhibitionism: -1, masochism: 1 },
     statusChanges: { stress: 3 },
     narrative: () =>
@@ -789,7 +1130,8 @@ const actionLibrary = {
   },
   kunciRumah: {
     label: "Periksa dan kunci seluruh pintu",
-    time: 1,
+    time: 0.5,
+    traits: ["physical", "security"],
     baseEffects: { awareness: 2, masochism: 1 },
     statusChanges: { stress: -2 },
     narrative: () =>
@@ -814,7 +1156,8 @@ const actionLibrary = {
   },
   susunRencana: {
     label: "Susun rencana cicilan realistis",
-    time: 2,
+    time: 1.5,
+    traits: ["planning", "mental"],
     condition: (state) => !state.flags.planPrepared,
     baseEffects: { awareness: 2, deviancy: 2, willpower: 1 },
     statusChanges: { stress: 2, fatigue: 3 },
@@ -826,7 +1169,8 @@ const actionLibrary = {
   },
   kirimRencana: {
     label: "Kirim rencana ke debt collector",
-    time: 1,
+    time: 0.5,
+    traits: ["planning", "social"],
     condition: (state) => state.flags.planPrepared && !state.flags.planSent,
     baseEffects: { sadism: 1, willpower: 1 },
     statusChanges: { stress: -2 },
@@ -840,15 +1184,17 @@ const actionLibrary = {
   },
   kerjaLembur: {
     label: "Kerjakan lembur daring",
-    time: 2,
-    baseEffects: { physique: -1, willpower: 2 },
-    statusChanges: { money: 450_000, fatigue: 8, stress: 4 },
+    time: 3,
+    traits: ["work", "mental"],
+    baseEffects: { physique: -2, willpower: 2 },
+    statusChanges: { money: 180_000, fatigue: 10, stress: 5 },
     narrative: () =>
       "Kamu menyelesaikan dua desain kilat untuk klien daring. Bayarannya lumayan, tapi mata terasa perih menahan kantuk.",
   },
   tulisJurnal: {
     label: "Tulis jurnal penguat diri",
-    time: 1,
+    time: 0.5,
+    traits: ["mental", "recovery"],
     baseEffects: { purity: 1, beauty: 1 },
     statusChanges: { trauma: -4, stress: -3 },
     narrative: () =>
@@ -875,6 +1221,8 @@ const locations = {
       { type: "action", id: "bacaTagihan" },
       { type: "action", id: "rekamKronologi" },
       { type: "action", id: "hubungiDina" },
+      { type: "action", id: "laporKeDina" },
+      { type: "action", id: "cicilKeDina" },
       { type: "action", id: "latihanNapas" },
       { type: "action", id: "bayarDebtSebagian" },
       { type: "action", id: "tulisJurnal" },
@@ -998,13 +1346,39 @@ const scheduledEvents = [
     id: "dinaArrives",
     condition: (state) => state.flags.awaitingDina && state.hour >= 6,
     narrative: () =>
-      "Dina muncul mengenakan hoodie dan membawa termos. \"Aku bawa lima juta dan sarapan. Kamu nggak sendirian,\" katanya.",
+      "Dina muncul mengenakan hoodie dan membawa termos. \"Aku pinjami lima juta, tapi tolong kabari progresnya tiap beberapa hari, ya,\" ujarnya.",
     baseEffects: { promiscuity: 2, willpower: 1, purity: 1 },
     statusChanges: { money: 5_000_000, stress: -6, fatigue: -3, fatherHealth: 4 },
     after: (state) => {
       state.flags.awaitingDina = false;
       state.flags.dinaArrived = true;
+      state.flags.dinaSupportAvailable = true;
       state.flags.safeWithSupport = true;
+      state.flags.dinaLoanOutstanding = (state.flags.dinaLoanOutstanding || 0) + 5_000_000;
+      state.flags.dinaLoanDue = { day: state.day + 10, hour: 20 };
+    },
+  },
+  {
+    id: "dinaReminder",
+    condition: (state) => {
+      const outstanding = state.flags.dinaLoanOutstanding || 0;
+      const due = state.flags.dinaLoanDue;
+      if (!due || outstanding <= 0) return false;
+      if (state.day > due.day) return true;
+      if (state.day === due.day && state.hour >= due.hour) return true;
+      return false;
+    },
+    narrative: () =>
+      "Notifikasi baru: Dina menanyakan kabar Ayah dan progress pengembalian pinjaman. Ia berharap ada cicilan kecil dalam beberapa hari.",
+    statusChanges: { stress: 5 },
+    after: (state) => {
+      state.flags.dinaSupportAvailable = true;
+      state.flags.safeWithSupport = true;
+      if (state.flags.dinaLoanOutstanding > 0) {
+        state.flags.dinaLoanDue = { day: state.day + 3, hour: 21 };
+      } else {
+        state.flags.dinaLoanDue = null;
+      }
     },
   },
 ];
@@ -1121,15 +1495,29 @@ function renderChoicesForLocation(location) {
     label.textContent = action.label;
     button.appendChild(label);
 
-    const preview = describeCombinedEffects(action.baseEffects, action.statusChanges);
+    const outcomePreview = resolveActionOutcome(action, worldState);
+    const preview = describeCombinedEffects(outcomePreview.baseEffects, outcomePreview.statusChanges);
+    const durationText = formatDuration(action.time ?? 1);
     if (preview) {
       const hint = document.createElement("span");
       hint.className = "choice-hint";
       hint.textContent = preview;
       button.appendChild(hint);
-      button.setAttribute("aria-label", `${action.label}. ${preview}`);
+      button.setAttribute("aria-label", `${action.label}. Durasi ${durationText}. ${preview}`);
     } else {
-      button.setAttribute("aria-label", action.label);
+      button.setAttribute("aria-label", `${action.label}. Durasi ${durationText}.`);
+    }
+
+    const duration = document.createElement("span");
+    duration.className = "choice-duration";
+    duration.textContent = `Durasi: ${durationText}`;
+    button.appendChild(duration);
+
+    if (outcomePreview.notes.length) {
+      const note = document.createElement("span");
+      note.className = "choice-note";
+      note.textContent = outcomePreview.notes[0];
+      button.appendChild(note);
     }
 
     button.addEventListener("click", () => performAction(actionRef.id));
@@ -1165,7 +1553,11 @@ function renderScene(narratives = [], changeRecords = []) {
 
   const location = locations[worldState.location];
   const paragraphs = [];
-  paragraphs.push(`Hari ${worldState.day}, ${formatTime(worldState.hour)} di ${location?.name ?? "???"}.`);
+  const clock = formatTime(worldState.hour, worldState.minute);
+  const calendar = formatCalendarDate(worldState);
+  paragraphs.push(
+    `Hari ${worldState.day} (${calendar}), ${clock} di ${location?.name ?? "???"}.`,
+  );
   if (location) {
     const description = location.description?.(worldState);
     if (description) {
@@ -1207,16 +1599,22 @@ function performAction(id) {
   let narratives = [];
   let changeRecords = [];
 
-  if (action.baseEffects) {
-    changeRecords = changeRecords.concat(applyEffects(action.baseEffects));
+  const outcome = resolveActionOutcome(action, worldState);
+
+  if (Object.keys(outcome.baseEffects).length) {
+    changeRecords = changeRecords.concat(applyEffects(outcome.baseEffects));
   }
-  if (action.statusChanges) {
-    changeRecords = changeRecords.concat(applyStatusChanges(action.statusChanges));
+  if (Object.keys(outcome.statusChanges).length) {
+    changeRecords = changeRecords.concat(applyStatusChanges(outcome.statusChanges));
   }
 
   const narrative = typeof action.narrative === "function" ? action.narrative(worldState) : action.narrative;
   if (narrative) {
     narratives.push(narrative);
+  }
+
+  if (outcome.notes.length) {
+    narratives = narratives.concat(outcome.notes);
   }
 
   const afterText = action.after?.(worldState);
@@ -1250,8 +1648,9 @@ function moveTo(target) {
   updateStatusUI();
 
   let narratives = [`Kamu bergerak menuju ${destination.name.toLowerCase()}.`];
+  const travelChanges = advanceTime(0.25);
   const eventResults = handleEvents();
-  const changeRecords = eventResults.changes;
+  const changeRecords = travelChanges.concat(eventResults.changes);
   narratives = narratives.concat(eventResults.narratives);
 
   const ending = checkEndConditions();
