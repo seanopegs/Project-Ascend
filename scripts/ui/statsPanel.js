@@ -1,5 +1,6 @@
 import { statsOrder, tierLabels, getTier } from "../config/stats.js";
 import { createFloatingWindow } from "./floatingWindow.js";
+import { registerModalOpen, registerModalClose } from "./modalManager.js";
 
 const TITLE_ID = "statsDialogTitle";
 const statElements = new Map();
@@ -141,6 +142,7 @@ export function onStatsVisibilityChange(visible) {
   }
 
   if (visible) {
+    registerModalOpen();
     containerRef.hidden = false;
     containerRef.removeAttribute("hidden");
     containerRef.setAttribute("aria-hidden", "false");
@@ -152,6 +154,7 @@ export function onStatsVisibilityChange(visible) {
       closeButtonRef?.focus?.();
     });
   } else {
+    registerModalClose();
     containerRef.hidden = true;
     if (!containerRef.hasAttribute("hidden")) {
       containerRef.setAttribute("hidden", "");
