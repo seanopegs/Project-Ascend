@@ -996,6 +996,7 @@ body {
   max-width: 28rem;
 }
 
+html.modal-open,
 body.modal-open {
   overflow: hidden;
 }

@@ -841,20 +841,28 @@ var GameApp = (() => {
   var SCROLL_LOCK_CLASS = "modal-open";
   var openModalCount = 0;
   var lastScrollY = 0;
+  var previousPaddingRight = "";
+  function getScrollbarWidth() {
+    return window.innerWidth - document.documentElement.clientWidth;
+  }
   function applyScrollLock() {
     lastScrollY = window.scrollY || document.documentElement.scrollTop || 0;
-    document.body.classList.add(SCROLL_LOCK_CLASS);
-    document.body.dataset.scrollLocked = "true";
-    document.body.style.position = "fixed";
-    document.body.style.width = "100%";
-    document.body.style.top = `-${lastScrollY}px`;
+    const body = document.body;
+    const scrollbarWidth = getScrollbarWidth();
+    previousPaddingRight = body.style.paddingRight;
+    if (scrollbarWidth > 0) {
+      body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+    body.classList.add(SCROLL_LOCK_CLASS);
+    document.documentElement.classList.add(SCROLL_LOCK_CLASS);
+    body.dataset.scrollLocked = "true";
   }
   function releaseScrollLock() {
-    document.body.classList.remove(SCROLL_LOCK_CLASS);
-    document.body.dataset.scrollLocked = "false";
-    document.body.style.position = "";
-    document.body.style.width = "";
-    document.body.style.top = "";
+    const body = document.body;
+    body.classList.remove(SCROLL_LOCK_CLASS);
+    document.documentElement.classList.remove(SCROLL_LOCK_CLASS);
+    body.dataset.scrollLocked = "false";
+    body.style.paddingRight = previousPaddingRight;
     window.scrollTo(0, lastScrollY);
   }
   function registerModalOpen() {
