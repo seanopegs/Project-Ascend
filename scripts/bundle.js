@@ -757,6 +757,8 @@ var GameApp = (() => {
       modal.style.transform = "translate(-50%, -50%)";
       modal.style.left = "50%";
       modal.style.top = "50%";
+      modal.dataset.dragging = "false";
+      container.dataset.dragging = "false";
     }
     function updatePosition(clientX, clientY) {
       const rect = modal.getBoundingClientRect();
@@ -790,12 +792,6 @@ var GameApp = (() => {
       }
       event.preventDefault();
       hasCustomPosition = true;
-      if (modal.style.transform.includes("-50%")) {
-        const rect = modal.getBoundingClientRect();
-        modal.style.transform = "translate(0, 0)";
-        modal.style.left = `${rect.left}px`;
-        modal.style.top = `${rect.top}px`;
-      }
       updatePosition(event.clientX, event.clientY);
     }
     function startDrag(event) {
@@ -807,7 +803,13 @@ var GameApp = (() => {
       }
       pointerId = event.pointerId;
       handle.setPointerCapture?.(pointerId);
-      const rect = modal.getBoundingClientRect();
+      let rect = modal.getBoundingClientRect();
+      if (modal.style.transform.includes("-50%")) {
+        modal.style.transform = "translate(0, 0)";
+        modal.style.left = `${rect.left}px`;
+        modal.style.top = `${rect.top}px`;
+        rect = modal.getBoundingClientRect();
+      }
       offsetX = event.clientX - rect.left;
       offsetY = event.clientY - rect.top;
       modal.dataset.dragging = "true";
@@ -833,6 +835,50 @@ var GameApp = (() => {
     };
     applyCenterPosition();
     return controller;
+  }
+
+  // scripts/ui/modalManager.js
+  var SCROLL_LOCK_CLASS = "modal-open";
+  var openModalCount = 0;
+  var lastScrollY = 0;
+  var previousPaddingRight = "";
+  function getScrollbarWidth() {
+    return window.innerWidth - document.documentElement.clientWidth;
+  }
+  function applyScrollLock() {
+    lastScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    const body = document.body;
+    const scrollbarWidth = getScrollbarWidth();
+    previousPaddingRight = body.style.paddingRight;
+    if (scrollbarWidth > 0) {
+      body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+    body.classList.add(SCROLL_LOCK_CLASS);
+    document.documentElement.classList.add(SCROLL_LOCK_CLASS);
+    body.dataset.scrollLocked = "true";
+  }
+  function releaseScrollLock() {
+    const body = document.body;
+    body.classList.remove(SCROLL_LOCK_CLASS);
+    document.documentElement.classList.remove(SCROLL_LOCK_CLASS);
+    body.dataset.scrollLocked = "false";
+    body.style.paddingRight = previousPaddingRight;
+    window.scrollTo(0, lastScrollY);
+  }
+  function registerModalOpen() {
+    if (openModalCount === 0) {
+      applyScrollLock();
+    }
+    openModalCount += 1;
+  }
+  function registerModalClose() {
+    if (openModalCount === 0) {
+      return;
+    }
+    openModalCount -= 1;
+    if (openModalCount === 0) {
+      releaseScrollLock();
+    }
   }
 
   // scripts/ui/statsPanel.js
@@ -957,6 +1003,7 @@ var GameApp = (() => {
       return;
     }
     if (visible) {
+      registerModalOpen();
       containerRef.hidden = false;
       containerRef.removeAttribute("hidden");
       containerRef.setAttribute("aria-hidden", "false");
@@ -968,6 +1015,7 @@ var GameApp = (() => {
         closeButtonRef?.focus?.();
       });
     } else {
+      registerModalClose();
       containerRef.hidden = true;
       if (!containerRef.hasAttribute("hidden")) {
         containerRef.setAttribute("hidden", "");
@@ -1350,6 +1398,7 @@ var GameApp = (() => {
     buttonRef.setAttribute("aria-pressed", expanded);
     buttonRef.textContent = isOpen ? closeLabel : openLabel;
     if (isOpen) {
+      registerModalOpen();
       previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       if (floatingController2 && !floatingController2.hasCustomPosition()) {
         floatingController2.center();
@@ -1363,6 +1412,7 @@ var GameApp = (() => {
         }
       });
     } else {
+      registerModalClose();
       if (previousFocus && typeof previousFocus.focus === "function") {
         previousFocus.focus();
       }
@@ -1508,6 +1558,97 @@ var GameApp = (() => {
     }
   }
 
+  // scripts/ui/themeToggle.js
+  var STORAGE_KEY = "jalanKeluar:theme";
+  var THEMES = /* @__PURE__ */ new Set(["dark", "light"]);
+  var buttonRef2 = null;
+  var mediaQueryRef = null;
+  var currentTheme = "dark";
+  var hasStoredPreference = false;
+  function getStoredTheme() {
+    try {
+      const value = window.localStorage.getItem(STORAGE_KEY);
+      if (value && THEMES.has(value)) {
+        return value;
+      }
+    } catch (error) {
+      console.warn("Gagal membaca preferensi tema dari penyimpanan.", error);
+    }
+    return null;
+  }
+  function persistTheme(theme) {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, theme);
+    } catch (error) {
+      console.warn("Gagal menyimpan preferensi tema.", error);
+    }
+  }
+  function getSystemTheme() {
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  }
+  function updateButton(theme) {
+    if (!buttonRef2) {
+      return;
+    }
+    const isLight = theme === "light";
+    buttonRef2.setAttribute("aria-pressed", String(isLight));
+    buttonRef2.setAttribute("aria-label", isLight ? "Aktifkan mode gelap" : "Aktifkan mode terang");
+    buttonRef2.dataset.theme = theme;
+    const icon = buttonRef2.querySelector(".theme-toggle__icon");
+    const label = buttonRef2.querySelector(".theme-toggle__label");
+    if (icon) {
+      icon.textContent = isLight ? "\u2600\uFE0F" : "\u{1F319}";
+    }
+    if (label) {
+      label.textContent = isLight ? "Mode Terang" : "Mode Gelap";
+    }
+  }
+  function applyTheme(theme, { persist = true } = {}) {
+    if (!THEMES.has(theme)) {
+      theme = "dark";
+    }
+    currentTheme = theme;
+    document.documentElement.dataset.theme = theme;
+    if (persist) {
+      persistTheme(theme);
+      hasStoredPreference = true;
+    }
+    updateButton(theme);
+  }
+  function handleButtonClick(event) {
+    event?.preventDefault?.();
+    const nextTheme = currentTheme === "dark" ? "light" : "dark";
+    applyTheme(nextTheme, { persist: true });
+  }
+  function handleSystemChange(event) {
+    if (hasStoredPreference) {
+      return;
+    }
+    const theme = event.matches ? "light" : "dark";
+    applyTheme(theme, { persist: false });
+  }
+  function initializeThemeToggle(button) {
+    if (buttonRef2) {
+      buttonRef2.removeEventListener("click", handleButtonClick);
+    }
+    buttonRef2 = button ?? null;
+    const storedTheme = getStoredTheme();
+    hasStoredPreference = storedTheme !== null;
+    const initialTheme = storedTheme ?? getSystemTheme();
+    applyTheme(initialTheme, { persist: false });
+    if (buttonRef2) {
+      buttonRef2.addEventListener("click", handleButtonClick);
+      updateButton(initialTheme);
+    }
+    if (mediaQueryRef) {
+      mediaQueryRef.removeEventListener("change", handleSystemChange);
+    }
+    if (window.matchMedia) {
+      mediaQueryRef = window.matchMedia("(prefers-color-scheme: light)");
+      mediaQueryRef.addEventListener("change", handleSystemChange);
+    }
+  }
+
   // scripts/game/engine.js
   var stats = createInitialStats();
   var allStatsMetadata = /* @__PURE__ */ new Map();
@@ -1528,6 +1669,7 @@ var GameApp = (() => {
   var journalButton;
   var journalPanel;
   var miniMapContainer;
+  var themeToggleButton;
   var statsPanelVisible = false;
   function detachUiHandlers() {
     if (toggleStatsButton) {
@@ -1570,6 +1712,7 @@ var GameApp = (() => {
     journalButton = document.getElementById("journalButton");
     journalPanel = document.getElementById("journalPanel");
     miniMapContainer = document.getElementById("miniMap");
+    themeToggleButton = document.getElementById("themeToggle");
     if (toggleStatsButton && statsElement) {
       toggleStatsButton.setAttribute("aria-controls", statsElement.id);
       statsPanelVisible = !statsElement.hasAttribute("hidden");
@@ -1591,6 +1734,7 @@ var GameApp = (() => {
     } else if (journalButton && !journalPanel) {
       disableControl(journalButton, "Panel jurnal tidak ditemukan.");
     }
+    initializeThemeToggle(themeToggleButton);
     if (toggleStatsButton && statsElement) {
       toggleStatsButton.addEventListener("click", handleToggleStatsClick);
     }

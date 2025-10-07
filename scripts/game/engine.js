@@ -12,6 +12,7 @@ import { initializeJournal, refreshJournal, closeJournal } from "../ui/journal.j
 import { formatCurrency, formatChange } from "../util/format.js";
 import { clamp, normalizeValue } from "../util/math.js";
 import { formatTime, formatCalendarDate, formatDuration, advanceCalendarDay } from "../util/time.js";
+import { initializeThemeToggle } from "../ui/themeToggle.js";
 
 const stats = createInitialStats();
 const allStatsMetadata = new Map();
@@ -34,6 +35,7 @@ let toggleStatsButton;
 let journalButton;
 let journalPanel;
 let miniMapContainer;
+let themeToggleButton;
 let statsPanelVisible = false;
 
 function detachUiHandlers() {
@@ -82,6 +84,7 @@ export function initializeGame() {
   journalButton = document.getElementById("journalButton");
   journalPanel = document.getElementById("journalPanel");
   miniMapContainer = document.getElementById("miniMap");
+  themeToggleButton = document.getElementById("themeToggle");
 
   if (toggleStatsButton && statsElement) {
     toggleStatsButton.setAttribute("aria-controls", statsElement.id);
@@ -109,6 +112,8 @@ export function initializeGame() {
   } else if (journalButton && !journalPanel) {
     disableControl(journalButton, "Panel jurnal tidak ditemukan.");
   }
+
+  initializeThemeToggle(themeToggleButton);
 
   if (toggleStatsButton && statsElement) {
     toggleStatsButton.addEventListener("click", handleToggleStatsClick);
