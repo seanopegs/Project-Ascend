@@ -1,16 +1,11 @@
-import { createFloatingWindow } from "./floatingWindow.js";
-import { registerModalOpen, registerModalClose } from "./modalManager.js";
+import { createModalHost } from "./modalSystem.js";
 
 let panelRef = null;
 let buttonRef = null;
 let contentRef = null;
 let closeButtonRef = null;
-let floatingController = null;
-let modalRef = null;
-let dragHandleRef = null;
+let modalController = null;
 let providerRef = () => [];
-let isOpen = false;
-let previousFocus = null;
 let openLabel = "Lihat Jurnal";
 const closeLabel = "Tutup Jurnal";
 
@@ -19,18 +14,32 @@ const BODY_ID = "journalDialogBody";
 
 function handleJournalButtonClick(event) {
   event?.preventDefault?.();
-  toggleJournal();
-}
-
-function handlePanelBackgroundClick(event) {
-  if (event.target === panelRef) {
-    closeJournal();
-  }
+  modalController?.toggle();
 }
 
 function handleCloseButtonClick(event) {
   event?.preventDefault?.();
-  closeJournal();
+  modalController?.requestClose("action");
+}
+
+function handleModalOpen() {
+  if (!buttonRef) {
+    return;
+  }
+  buttonRef.setAttribute("aria-expanded", "true");
+  buttonRef.setAttribute("aria-pressed", "true");
+  buttonRef.textContent = closeLabel;
+  renderEntries();
+  modalController?.refreshFocusTrap();
+}
+
+function handleModalClose() {
+  if (!buttonRef) {
+    return;
+  }
+  buttonRef.setAttribute("aria-expanded", "false");
+  buttonRef.setAttribute("aria-pressed", "false");
+  buttonRef.textContent = openLabel;
 }
 
 export function initializeJournal(button, panel, provider) {
@@ -41,114 +50,53 @@ export function initializeJournal(button, panel, provider) {
   if (buttonRef) {
     buttonRef.removeEventListener("click", handleJournalButtonClick);
   }
-  if (panelRef) {
-    panelRef.removeEventListener("click", handlePanelBackgroundClick);
-    panelRef.removeEventListener("keydown", handleKeydown);
-  }
   if (closeButtonRef) {
     closeButtonRef.removeEventListener("click", handleCloseButtonClick);
   }
-  floatingController?.destroy?.();
-  floatingController = null;
+  modalController?.destroy?.();
+  modalController = null;
 
   buttonRef = button;
   panelRef = panel;
-  providerRef = provider;
+  providerRef = typeof provider === "function" ? provider : () => [];
   openLabel = buttonRef.textContent?.trim() || openLabel;
 
   buttonRef.setAttribute("aria-haspopup", "dialog");
   buttonRef.setAttribute("aria-controls", panelRef.id);
+
   panelRef.classList.add("journal-panel");
-  panelRef.setAttribute("role", "dialog");
-  panelRef.setAttribute("aria-modal", "false");
-  panelRef.setAttribute("aria-labelledby", TITLE_ID);
-  panelRef.setAttribute("aria-describedby", BODY_ID);
-  panelRef.tabIndex = -1;
-  panelRef.hidden = true;
-  isOpen = false;
 
-  panelRef.innerHTML = `
-    <div class="journal-modal" role="document">
-      <header class="journal-modal__header">
-        <div class="journal-modal__titles">
-          <p class="journal-modal__subtitle">Catatan Strategi</p>
-          <h2 class="journal-modal__title" id="${TITLE_ID}">Jurnal Visi Ke Depan</h2>
-        </div>
-        <button type="button" class="journal-modal__close" aria-label="Tutup jurnal">
-          <span aria-hidden="true">✕</span>
-        </button>
-      </header>
-      <div class="journal-modal__body" id="${BODY_ID}"></div>
-    </div>
-  `;
-
-  modalRef = panelRef.querySelector(".journal-modal");
-  dragHandleRef = panelRef.querySelector(".journal-modal__header");
-  contentRef = panelRef.querySelector(".journal-modal__body");
-  closeButtonRef = panelRef.querySelector(".journal-modal__close");
-
-  floatingController = createFloatingWindow({
-    container: panelRef,
-    modal: modalRef,
-    handle: dragHandleRef,
+  modalController = createModalHost(panelRef, {
+    labelledBy: TITLE_ID,
+    describedBy: BODY_ID,
+    size: "wide",
+    tone: "ember",
+    onOpen: handleModalOpen,
+    onClose: handleModalClose,
   });
 
+  const surface = modalController.surface;
+  surface.classList.add("journal-modal");
+  surface.innerHTML = `
+    <header class="journal-modal__header">
+      <div class="journal-modal__titles">
+        <p class="journal-modal__subtitle">Catatan Strategi</p>
+        <h2 class="journal-modal__title" id="${TITLE_ID}">Jurnal Visi Ke Depan</h2>
+      </div>
+      <button type="button" class="journal-modal__close" aria-label="Tutup jurnal">
+        <span aria-hidden="true">✕</span>
+      </button>
+    </header>
+    <div class="journal-modal__body" id="${BODY_ID}"></div>
+  `;
+
+  contentRef = surface.querySelector(".journal-modal__body");
+  closeButtonRef = surface.querySelector(".journal-modal__close");
   closeButtonRef?.addEventListener("click", handleCloseButtonClick);
-  panelRef.addEventListener("click", handlePanelBackgroundClick);
-  panelRef.addEventListener("keydown", handleKeydown);
-
-  updateVisibility();
-
   buttonRef.addEventListener("click", handleJournalButtonClick);
-}
 
-function handleKeydown(event) {
-  if (event.key === "Escape") {
-    event.preventDefault();
-    closeJournal();
-  }
-}
-
-function updateVisibility() {
-  if (!panelRef || !buttonRef) return;
-
-  panelRef.hidden = !isOpen;
-  if (isOpen) {
-    panelRef.removeAttribute("hidden");
-  } else if (!panelRef.hasAttribute("hidden")) {
-    panelRef.setAttribute("hidden", "");
-  }
-
-  panelRef.setAttribute("aria-modal", isOpen ? "true" : "false");
-  panelRef.setAttribute("aria-hidden", isOpen ? "false" : "true");
-  panelRef.dataset.open = isOpen ? "true" : "false";
-
-  const expanded = isOpen ? "true" : "false";
-  buttonRef.setAttribute("aria-expanded", expanded);
-  buttonRef.setAttribute("aria-pressed", expanded);
-  buttonRef.textContent = isOpen ? closeLabel : openLabel;
-
-  if (isOpen) {
-    registerModalOpen();
-    previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    if (floatingController && !floatingController.hasCustomPosition()) {
-      floatingController.center();
-    }
-    renderEntries();
-    window.requestAnimationFrame(() => {
-      if (closeButtonRef) {
-        closeButtonRef.focus();
-      } else {
-        panelRef.focus();
-      }
-    });
-  } else {
-    registerModalClose();
-    if (previousFocus && typeof previousFocus.focus === "function") {
-      previousFocus.focus();
-    }
-    previousFocus = null;
-  }
+  buttonRef.setAttribute("aria-expanded", "false");
+  buttonRef.setAttribute("aria-pressed", "false");
 }
 
 function renderEntries() {
@@ -217,25 +165,12 @@ function renderEntries() {
 }
 
 export function refreshJournal() {
-  if (isOpen) {
+  if (modalController?.isOpen()) {
     renderEntries();
+    modalController.refreshFocusTrap();
   }
 }
 
 export function closeJournal() {
-  if (!isOpen) return;
-  toggleJournal(false);
-}
-
-function toggleJournal(forceState) {
-  const nextState = typeof forceState === "boolean" ? forceState : !isOpen;
-  if (nextState === isOpen) {
-    if (isOpen) {
-      renderEntries();
-    }
-    return;
-  }
-
-  isOpen = nextState;
-  updateVisibility();
+  modalController?.close();
 }

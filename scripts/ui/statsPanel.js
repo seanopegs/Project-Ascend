@@ -1,17 +1,20 @@
 import { statsOrder, tierLabels, getTier } from "../config/stats.js";
-import { createFloatingWindow } from "./floatingWindow.js";
-import { registerModalOpen, registerModalClose } from "./modalManager.js";
+import { createModalHost } from "./modalSystem.js";
 
 const TITLE_ID = "statsDialogTitle";
 const statElements = new Map();
 let containerRef = null;
 let gridRef = null;
 let closeButtonRef = null;
-let floatingController = null;
+let modalController = null;
 let onRequestCloseRef = null;
 
 function handleCloseClick(event) {
   event?.preventDefault?.();
+  if (modalController) {
+    modalController.requestClose("action");
+    return;
+  }
   onRequestCloseRef?.();
 }
 
@@ -20,8 +23,8 @@ export function initializeStatsUI(container, stats, options = {}) {
     containerRef = null;
     gridRef = null;
     closeButtonRef = null;
-    floatingController?.destroy?.();
-    floatingController = null;
+    modalController?.destroy?.();
+    modalController = null;
     onRequestCloseRef = null;
     statElements.clear();
     return;
@@ -32,43 +35,44 @@ export function initializeStatsUI(container, stats, options = {}) {
   if (closeButtonRef) {
     closeButtonRef.removeEventListener("click", handleCloseClick);
   }
-  floatingController?.destroy?.();
-  floatingController = null;
+  modalController?.destroy?.();
+  modalController = null;
 
   containerRef = container;
-  containerRef.innerHTML = "";
   containerRef.classList.add("stats-panel");
-  containerRef.setAttribute("role", "dialog");
-  containerRef.setAttribute("aria-modal", "false");
-  containerRef.setAttribute("aria-labelledby", TITLE_ID);
-  containerRef.setAttribute("aria-hidden", "true");
-  containerRef.tabIndex = -1;
-  containerRef.hidden = true;
-  containerRef.dataset.open = "false";
 
-  containerRef.innerHTML = `
-    <div class="stats-modal" role="document">
-      <header class="stats-modal__header">
-        <div class="stats-modal__titles">
-          <p class="stats-modal__subtitle">Profil Kepribadian</p>
-          <h2 class="stats-modal__title" id="${TITLE_ID}">Stat Karakter</h2>
-        </div>
-        <button type="button" class="stats-modal__close" aria-label="Tutup stat">
-          <span aria-hidden="true">✕</span>
-        </button>
-      </header>
-      <div class="stats-modal__body">
-        <div class="stats-grid" role="list"></div>
+  modalController = createModalHost(containerRef, {
+    labelledBy: TITLE_ID,
+    size: "wide",
+    tone: "midnight",
+    onRequestClose: () => {
+      if (onRequestCloseRef) {
+        onRequestCloseRef();
+        return false;
+      }
+      return true;
+    },
+  });
+
+  const surface = modalController.surface;
+  surface.classList.add("stats-modal");
+  surface.innerHTML = `
+    <header class="stats-modal__header">
+      <div class="stats-modal__titles">
+        <p class="stats-modal__subtitle">Profil Kepribadian</p>
+        <h2 class="stats-modal__title" id="${TITLE_ID}">Stat Karakter</h2>
       </div>
+      <button type="button" class="stats-modal__close" aria-label="Tutup stat">
+        <span aria-hidden="true">✕</span>
+      </button>
+    </header>
+    <div class="stats-modal__body">
+      <div class="stats-grid" role="list"></div>
     </div>
   `;
 
-  const modalRef = containerRef.querySelector(".stats-modal");
-  const dragHandle = containerRef.querySelector(".stats-modal__header");
-  gridRef = containerRef.querySelector(".stats-grid");
-  closeButtonRef = containerRef.querySelector(".stats-modal__close");
-  floatingController = createFloatingWindow({ container: containerRef, modal: modalRef, handle: dragHandle });
-
+  gridRef = surface.querySelector(".stats-grid");
+  closeButtonRef = surface.querySelector(".stats-modal__close");
   closeButtonRef?.addEventListener("click", handleCloseClick);
 
   statElements.clear();
@@ -133,36 +137,21 @@ export function initializeStatsUI(container, stats, options = {}) {
     statElements.set(key, { card, bar, progress, value, tier });
   });
 
-  floatingController?.center?.();
+  modalController.refreshFocusTrap();
 }
 
 export function onStatsVisibilityChange(visible) {
-  if (!containerRef) {
+  if (!containerRef || !modalController) {
     return;
   }
 
   if (visible) {
-    registerModalOpen();
-    containerRef.hidden = false;
-    containerRef.removeAttribute("hidden");
-    containerRef.setAttribute("aria-modal", "true");
-    containerRef.setAttribute("aria-hidden", "false");
-    containerRef.dataset.open = "true";
-    if (floatingController && !floatingController.hasCustomPosition()) {
-      floatingController.center();
-    }
+    modalController.open();
     window.requestAnimationFrame(() => {
       closeButtonRef?.focus?.();
     });
   } else {
-    registerModalClose();
-    containerRef.hidden = true;
-    if (!containerRef.hasAttribute("hidden")) {
-      containerRef.setAttribute("hidden", "");
-    }
-    containerRef.setAttribute("aria-modal", "false");
-    containerRef.setAttribute("aria-hidden", "true");
-    containerRef.dataset.open = "false";
+    modalController.close({ restoreFocus: false });
   }
 }
 
