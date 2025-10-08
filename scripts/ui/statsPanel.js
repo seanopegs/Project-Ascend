@@ -145,6 +145,7 @@ export function onStatsVisibilityChange(visible) {
     registerModalOpen();
     containerRef.hidden = false;
     containerRef.removeAttribute("hidden");
+    containerRef.setAttribute("aria-modal", "true");
     containerRef.setAttribute("aria-hidden", "false");
     containerRef.dataset.open = "true";
     if (floatingController && !floatingController.hasCustomPosition()) {
@@ -159,6 +160,7 @@ export function onStatsVisibilityChange(visible) {
     if (!containerRef.hasAttribute("hidden")) {
       containerRef.setAttribute("hidden", "");
     }
+    containerRef.setAttribute("aria-modal", "false");
     containerRef.setAttribute("aria-hidden", "true");
     containerRef.dataset.open = "false";
   }

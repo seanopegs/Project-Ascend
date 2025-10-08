@@ -134,13 +134,23 @@ function buildMetadata() {
       alias: stat.alias,
       formatChange: (amount) => formatChange(Number(amount.toFixed(1))),
       positiveIsGood: true,
+      color: stat.color,
+      colorStrong: stat.colorStrong,
+      colorSoft: stat.colorSoft,
     });
   });
   Object.entries(statusConfig).forEach(([key, meta]) => {
+    const negative = meta.positiveIsGood === false;
+    const fallbackColor = negative ? "#fb7185" : "#38bdf8";
+    const fallbackColorStrong = negative ? "#f43f5e" : "#0ea5e9";
+    const fallbackColorSoft = negative ? "rgba(251, 113, 133, 0.22)" : "rgba(56, 189, 248, 0.18)";
     allStatsMetadata.set(key, {
       alias: meta.alias,
       formatChange: meta.formatChange,
       positiveIsGood: meta.positiveIsGood ?? true,
+      color: meta.color ?? fallbackColor,
+      colorStrong: meta.colorStrong ?? fallbackColorStrong,
+      colorSoft: meta.colorSoft ?? fallbackColorSoft,
     });
   });
 }
@@ -443,16 +453,32 @@ function aggregateChanges(changes) {
 }
 
 function describeEffects(effects = {}) {
-  if (!effects) return "";
+  if (!effects) {
+    return { text: "", segments: [] };
+  }
+
   const parts = [];
+  const segments = [];
   Object.entries(effects).forEach(([key, amount]) => {
     if (!amount) return;
     const metadata = allStatsMetadata.get(key);
     if (!metadata) return;
     const formatter = metadata.formatChange ?? formatChange;
-    parts.push(`${metadata.alias} ${formatter(amount)}`);
+    const formatted = formatter(amount);
+    parts.push(`${metadata.alias} ${formatted}`);
+    segments.push({
+      key,
+      alias: metadata.alias,
+      amount,
+      formatted,
+      positiveIsGood: metadata.positiveIsGood !== false,
+      color: metadata.color,
+      colorStrong: metadata.colorStrong,
+      colorSoft: metadata.colorSoft,
+    });
   });
-  return parts.join(", ");
+
+  return { text: parts.join(", "), segments };
 }
 
 function describeCombinedEffects(baseEffects = {}, statusEffects = {}) {
@@ -604,15 +630,55 @@ function renderChoicesForLocation(location) {
     const outcomePreview = resolveActionOutcome(action, worldState);
     const preview = describeCombinedEffects(outcomePreview.baseEffects, outcomePreview.statusChanges);
     const durationText = formatDuration(action.time ?? 1);
-    if (preview) {
+    const ariaParts = [`${action.label}.`, `Durasi ${durationText}.`];
+
+    if (preview?.segments?.length) {
       const hint = document.createElement("span");
       hint.className = "choice-hint";
-      hint.textContent = preview;
+      hint.setAttribute("aria-hidden", "true");
+      preview.segments.forEach((segment, index) => {
+        const chip = document.createElement("span");
+        chip.className = "stat-chip";
+        chip.dataset.stat = segment.key;
+        const direction = segment.amount > 0 ? "increase" : "decrease";
+        const positiveOutcome =
+          (segment.amount > 0 && segment.positiveIsGood) || (segment.amount < 0 && !segment.positiveIsGood);
+        chip.dataset.direction = direction;
+        chip.dataset.outcome = positiveOutcome ? "positive" : "negative";
+        chip.textContent = `${segment.alias} ${segment.formatted}`;
+        if (segment.color) {
+          chip.style.setProperty("--stat-chip-color", segment.color);
+        }
+        if (segment.colorStrong) {
+          chip.style.setProperty("--stat-chip-color-strong", segment.colorStrong);
+        }
+        if (segment.colorSoft) {
+          chip.style.setProperty("--stat-chip-color-soft", segment.colorSoft);
+        }
+        hint.appendChild(chip);
+
+        if (index < preview.segments.length - 1) {
+          const separator = document.createElement("span");
+          separator.className = "stat-chip-separator";
+          separator.setAttribute("aria-hidden", "true");
+          separator.textContent = "•";
+          hint.appendChild(separator);
+        }
+      });
       button.appendChild(hint);
-      button.setAttribute("aria-label", `${action.label}. Durasi ${durationText}. ${preview}`);
-    } else {
-      button.setAttribute("aria-label", `${action.label}. Durasi ${durationText}.`);
+      if (preview.text) {
+        ariaParts.push(preview.text);
+      }
+    } else if (preview?.text) {
+      const hint = document.createElement("span");
+      hint.className = "choice-hint";
+      hint.textContent = preview.text;
+      hint.setAttribute("aria-hidden", "true");
+      button.appendChild(hint);
+      ariaParts.push(preview.text);
     }
+
+    button.setAttribute("aria-label", ariaParts.join(" ").trim());
 
     const duration = document.createElement("span");
     duration.className = "choice-duration";

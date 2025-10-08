@@ -63,6 +63,26 @@ export function createFloatingWindow({ container, modal, handle }) {
     modal.style.top = `${nextTop}px`;
   }
 
+  function ensureWithinViewportBounds() {
+    const rect = modal.getBoundingClientRect();
+    const availableWidth = window.innerWidth;
+    const availableHeight = window.innerHeight;
+    const minLeft = DEFAULT_MARGIN;
+    const maxLeft = Math.max(minLeft, availableWidth - rect.width - DEFAULT_MARGIN);
+    const minTop = DEFAULT_MARGIN;
+    const maxTop = Math.max(minTop, availableHeight - rect.height - DEFAULT_MARGIN);
+
+    if (modal.style.transform.includes("-50%")) {
+      return;
+    }
+
+    const clampedLeft = clamp(rect.left, minLeft, maxLeft);
+    const clampedTop = clamp(rect.top, minTop, maxTop);
+
+    modal.style.left = `${clampedLeft}px`;
+    modal.style.top = `${clampedTop}px`;
+  }
+
   function endDrag(event) {
     if (pointerId !== null && event.pointerId !== pointerId) {
       return;
@@ -75,6 +95,7 @@ export function createFloatingWindow({ container, modal, handle }) {
     window.removeEventListener("pointermove", handlePointerMove);
     window.removeEventListener("pointerup", endDrag);
     window.removeEventListener("pointercancel", endDrag);
+    ensureWithinViewportBounds();
   }
 
   function handlePointerMove(event) {
@@ -119,6 +140,16 @@ export function createFloatingWindow({ container, modal, handle }) {
 
   handle.addEventListener("pointerdown", startDrag);
 
+  function handleResize() {
+    if (hasCustomPosition) {
+      ensureWithinViewportBounds();
+    } else {
+      applyCenterPosition();
+    }
+  }
+
+  window.addEventListener("resize", handleResize);
+
   const controller = {
     center: () => {
       applyCenterPosition();
@@ -129,6 +160,7 @@ export function createFloatingWindow({ container, modal, handle }) {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", endDrag);
       window.removeEventListener("pointercancel", endDrag);
+      window.removeEventListener("resize", handleResize);
     },
   };
 
