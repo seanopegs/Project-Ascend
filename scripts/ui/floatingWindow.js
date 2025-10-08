@@ -48,15 +48,21 @@ export function createFloatingWindow({ container, modal, handle }) {
     container.dataset.dragging = "false";
   }
 
+  function computeBounds(size, viewportSize) {
+    const limit = viewportSize - DEFAULT_MARGIN - size;
+    return {
+      min: Math.min(DEFAULT_MARGIN, limit),
+      max: Math.max(DEFAULT_MARGIN, limit),
+    };
+  }
+
   function updatePosition(clientX, clientY) {
     const deltaX = clientX - startPointerX;
     const deltaY = clientY - startPointerY;
     const availableWidth = window.innerWidth;
     const availableHeight = window.innerHeight;
-    const minLeft = DEFAULT_MARGIN;
-    const maxLeft = Math.max(minLeft, availableWidth - modalWidth - DEFAULT_MARGIN);
-    const minTop = DEFAULT_MARGIN;
-    const maxTop = Math.max(minTop, availableHeight - modalHeight - DEFAULT_MARGIN);
+    const { min: minLeft, max: maxLeft } = computeBounds(modalWidth, availableWidth);
+    const { min: minTop, max: maxTop } = computeBounds(modalHeight, availableHeight);
     const nextLeft = clamp(startLeft + deltaX, minLeft, maxLeft);
     const nextTop = clamp(startTop + deltaY, minTop, maxTop);
 
@@ -83,10 +89,8 @@ export function createFloatingWindow({ container, modal, handle }) {
     const rect = modal.getBoundingClientRect();
     const availableWidth = window.innerWidth;
     const availableHeight = window.innerHeight;
-    const minLeft = DEFAULT_MARGIN;
-    const maxLeft = Math.max(minLeft, availableWidth - rect.width - DEFAULT_MARGIN);
-    const minTop = DEFAULT_MARGIN;
-    const maxTop = Math.max(minTop, availableHeight - rect.height - DEFAULT_MARGIN);
+    const { min: minLeft, max: maxLeft } = computeBounds(rect.width, availableWidth);
+    const { min: minTop, max: maxTop } = computeBounds(rect.height, availableHeight);
 
     if (modal.style.transform.includes("-50%")) {
       return;
