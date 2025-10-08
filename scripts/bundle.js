@@ -752,6 +752,7 @@ var GameApp = (() => {
     let modalWidth = 0;
     let modalHeight = 0;
     let hasCustomPosition = false;
+    let isDragging = false;
     container.classList.add("floating-overlay");
     modal.classList.add("floating-window");
     handle.classList.add("floating-window__handle");
@@ -801,8 +802,11 @@ var GameApp = (() => {
       handle.releasePointerCapture?.(pointerId);
       pointerId = null;
       handle.style.cursor = "grab";
-      modal.dataset.dragging = "false";
-      container.dataset.dragging = "false";
+      if (isDragging) {
+        modal.dataset.dragging = "false";
+        container.dataset.dragging = "false";
+      }
+      isDragging = false;
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", endDrag);
       window.removeEventListener("pointercancel", endDrag);
@@ -813,6 +817,22 @@ var GameApp = (() => {
         return;
       }
       event.preventDefault();
+      if (!isDragging) {
+        if (modal.style.transform.includes("-50%")) {
+          const rect = modal.getBoundingClientRect();
+          modal.style.transform = "translate(0, 0)";
+          modal.style.left = `${rect.left}px`;
+          modal.style.top = `${rect.top}px`;
+          startLeft = rect.left;
+          startTop = rect.top;
+          modalWidth = rect.width;
+          modalHeight = rect.height;
+        }
+        modal.dataset.dragging = "true";
+        container.dataset.dragging = "true";
+        handle.style.cursor = "grabbing";
+        isDragging = true;
+      }
       hasCustomPosition = true;
       updatePosition(event.clientX, event.clientY);
     }
@@ -825,22 +845,13 @@ var GameApp = (() => {
       }
       pointerId = event.pointerId;
       handle.setPointerCapture?.(pointerId);
-      let rect = modal.getBoundingClientRect();
-      if (modal.style.transform.includes("-50%")) {
-        modal.style.transform = "translate(0, 0)";
-        modal.style.left = `${rect.left}px`;
-        modal.style.top = `${rect.top}px`;
-        rect = modal.getBoundingClientRect();
-      }
+      const rect = modal.getBoundingClientRect();
       startPointerX = event.clientX;
       startPointerY = event.clientY;
       startLeft = rect.left;
       startTop = rect.top;
       modalWidth = rect.width;
       modalHeight = rect.height;
-      modal.dataset.dragging = "true";
-      container.dataset.dragging = "true";
-      handle.style.cursor = "grabbing";
       window.addEventListener("pointermove", handlePointerMove);
       window.addEventListener("pointerup", endDrag);
       window.addEventListener("pointercancel", endDrag);
