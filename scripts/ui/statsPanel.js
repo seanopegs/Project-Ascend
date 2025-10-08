@@ -45,6 +45,11 @@ export function initializeStatsUI(container, stats, options = {}) {
     labelledBy: TITLE_ID,
     size: "wide",
     tone: "midnight",
+    trapFocus: false,
+    closeOnBackdrop: false,
+    lockScroll: false,
+    draggable: true,
+    dragHandle: ".stats-modal__header",
     onRequestClose: () => {
       if (onRequestCloseRef) {
         onRequestCloseRef();

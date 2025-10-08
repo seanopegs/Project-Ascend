@@ -71,6 +71,11 @@ export function initializeJournal(button, panel, provider) {
     describedBy: BODY_ID,
     size: "wide",
     tone: "ember",
+    trapFocus: false,
+    closeOnBackdrop: false,
+    lockScroll: false,
+    draggable: true,
+    dragHandle: ".journal-modal__header",
     onOpen: handleModalOpen,
     onClose: handleModalClose,
   });

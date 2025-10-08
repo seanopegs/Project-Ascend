@@ -4,7 +4,7 @@ const FOCUSABLE_SELECTORS = [
   '[contenteditable]','[tabindex]:not([tabindex="-1"])'
 ].join(',');
 
-let activeModalCount = 0;
+let lockedModalCount = 0;
 let resizeListenerAttached = false;
 
 function clamp(value, min, max) {
@@ -18,7 +18,7 @@ function syncDocumentState() {
     return;
   }
 
-  const hasOpenModal = activeModalCount > 0;
+  const hasOpenModal = lockedModalCount > 0;
   html.classList.toggle('modal-open', hasOpenModal);
   body.classList.toggle('modal-open', hasOpenModal);
 
@@ -45,7 +45,7 @@ function syncDocumentState() {
 }
 
 function handleWindowResize() {
-  if (activeModalCount > 0) {
+  if (lockedModalCount > 0) {
     syncDocumentState();
   }
 }
@@ -82,6 +82,15 @@ export function createModalHost(container, config = {}) {
     throw new Error('Modal host requires a valid container element');
   }
 
+  const originalParent = container.parentElement;
+  let hostPlaceholder = null;
+
+  if (originalParent && container.parentNode !== document.body) {
+    hostPlaceholder = document.createComment('modal-host-anchor');
+    originalParent.replaceChild(hostPlaceholder, container);
+    document.body.appendChild(container);
+  }
+
   const options = {
     labelledBy: config.labelledBy || null,
     describedBy: config.describedBy || null,
@@ -91,6 +100,9 @@ export function createModalHost(container, config = {}) {
     trapFocus: config.trapFocus !== false,
     closeOnBackdrop: config.closeOnBackdrop !== false,
     closeOnEscape: config.closeOnEscape !== false,
+    lockScroll: config.lockScroll !== false,
+    draggable: config.draggable === true,
+    dragHandle: typeof config.dragHandle === 'string' ? config.dragHandle : null,
     onOpen: typeof config.onOpen === 'function' ? config.onOpen : null,
     onClose: typeof config.onClose === 'function' ? config.onClose : null,
   };
@@ -101,6 +113,11 @@ export function createModalHost(container, config = {}) {
   container.classList.add('modal-host');
   container.dataset.modalSize = options.size;
   container.dataset.modalTone = options.tone;
+  container.dataset.modalMode = options.lockScroll ? 'modal' : 'floating';
+  container.dataset.modalOverlay = options.lockScroll ? 'scrim' : 'none';
+  if (options.draggable) {
+    container.dataset.modalDraggable = 'true';
+  }
   container.setAttribute('role', options.role);
   if (options.labelledBy) {
     container.setAttribute('aria-labelledby', options.labelledBy);
@@ -132,6 +149,7 @@ export function createModalHost(container, config = {}) {
   let isOpen = false;
   let focusableElements = [];
   let previouslyFocusedElement = null;
+  let dragState = null;
 
   function updateContainerState() {
     container.dataset.open = isOpen ? 'true' : 'false';
@@ -145,6 +163,10 @@ export function createModalHost(container, config = {}) {
   }
 
   function refreshFocusCycle() {
+    if (options.trapFocus === false) {
+      focusableElements = [];
+      return;
+    }
     focusableElements = getFocusableElements(surface);
   }
 
@@ -156,16 +178,191 @@ export function createModalHost(container, config = {}) {
     });
   }
 
+  function parseOffset(value) {
+    const numeric = Number.parseFloat(value);
+    return Number.isFinite(numeric) ? numeric : 0;
+  }
+
+  function getCurrentOffsets() {
+    return {
+      x: parseOffset(surface.style.getPropertyValue('--modal-offset-x')),
+      y: parseOffset(surface.style.getPropertyValue('--modal-offset-y')),
+    };
+  }
+
+  function applyOffset(offsetX, offsetY) {
+    surface.style.setProperty('--modal-offset-x', `${offsetX}px`);
+    surface.style.setProperty('--modal-offset-y', `${offsetY}px`);
+  }
+
+  function resetPosition() {
+    surface.style.removeProperty('--modal-offset-x');
+    surface.style.removeProperty('--modal-offset-y');
+    surface.classList.remove('is-dragging');
+  }
+
+  function constrainToViewport(width, height, offsetX, offsetY) {
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || width;
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || height;
+    const surfaceWidth = width ?? surface.getBoundingClientRect().width;
+    const surfaceHeight = height ?? surface.getBoundingClientRect().height;
+
+    const halfWidth = surfaceWidth / 2;
+    const halfHeight = surfaceHeight / 2;
+    const marginX = Math.min(48, Math.max(16, Math.floor(viewportWidth * 0.05)));
+    const marginY = Math.min(48, Math.max(16, Math.floor(viewportHeight * 0.08)));
+
+    const minCenterX = marginX + halfWidth;
+    const maxCenterX = viewportWidth - marginX - halfWidth;
+    const minCenterY = marginY + halfHeight;
+    const maxCenterY = viewportHeight - marginY - halfHeight;
+
+    const viewportCenterX = viewportWidth / 2;
+    const viewportCenterY = viewportHeight / 2;
+
+    let clampedOffsetX = offsetX;
+    let clampedOffsetY = offsetY;
+
+    if (minCenterX <= maxCenterX) {
+      const minOffsetX = minCenterX - viewportCenterX;
+      const maxOffsetX = maxCenterX - viewportCenterX;
+      clampedOffsetX = clamp(offsetX, minOffsetX, maxOffsetX);
+    } else {
+      clampedOffsetX = 0;
+    }
+
+    if (minCenterY <= maxCenterY) {
+      const minOffsetY = minCenterY - viewportCenterY;
+      const maxOffsetY = maxCenterY - viewportCenterY;
+      clampedOffsetY = clamp(offsetY, minOffsetY, maxOffsetY);
+    } else {
+      clampedOffsetY = 0;
+    }
+
+    return { x: clampedOffsetX, y: clampedOffsetY };
+  }
+
+  function commitConstrainedOffsets({ width, height } = {}) {
+    const { x, y } = getCurrentOffsets();
+    const constrained = constrainToViewport(width, height, x, y);
+    applyOffset(constrained.x, constrained.y);
+  }
+
+  function stopDragging() {
+    if (!dragState) {
+      return;
+    }
+    window.removeEventListener('pointermove', handlePointerMove);
+    window.removeEventListener('pointerup', handlePointerUp);
+    window.removeEventListener('pointercancel', handlePointerUp);
+    surface.releasePointerCapture?.(dragState.pointerId);
+    surface.classList.remove('is-dragging');
+    dragState = null;
+  }
+
+  function handlePointerMove(event) {
+    if (!dragState || event.pointerId !== dragState.pointerId) {
+      return;
+    }
+
+    const deltaX = event.clientX - dragState.startX;
+    const deltaY = event.clientY - dragState.startY;
+
+    const desiredOffsetX = dragState.baseOffsetX + deltaX;
+    const desiredOffsetY = dragState.baseOffsetY + deltaY;
+
+    const constrained = constrainToViewport(
+      dragState.width,
+      dragState.height,
+      desiredOffsetX,
+      desiredOffsetY,
+    );
+
+    applyOffset(constrained.x, constrained.y);
+  }
+
+  function handlePointerUp(event) {
+    if (!dragState || event.pointerId !== dragState.pointerId) {
+      return;
+    }
+    const { width, height } = dragState;
+    stopDragging();
+    commitConstrainedOffsets({ width, height });
+  }
+
+  function beginDrag(event) {
+    if (event.button !== 0 || !options.draggable) {
+      return;
+    }
+
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+
+    if (options.dragHandle) {
+      const handle = target.closest(options.dragHandle);
+      if (!handle || !surface.contains(handle)) {
+        return;
+      }
+    }
+
+    const rect = surface.getBoundingClientRect();
+    const offsets = getCurrentOffsets();
+    dragState = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      baseOffsetX: offsets.x,
+      baseOffsetY: offsets.y,
+      width: rect.width,
+      height: rect.height,
+    };
+
+    surface.setPointerCapture?.(event.pointerId);
+    surface.classList.add('is-dragging');
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+
+    event.preventDefault();
+  }
+
+  function handleSurfacePointerDown(event) {
+    beginDrag(event);
+  }
+
+  surface.addEventListener('pointerdown', handleSurfacePointerDown);
+
+  function handleViewportResize() {
+    if (!isOpen) {
+      return;
+    }
+    if (options.draggable) {
+      commitConstrainedOffsets();
+    }
+  }
+
+  window.addEventListener('resize', handleViewportResize, { passive: true });
+  window.addEventListener('orientationchange', handleViewportResize, { passive: true });
+
   function openModal() {
     if (isOpen) {
       return;
     }
+    resetPosition();
     previouslyFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     isOpen = true;
     updateContainerState();
-    activeModalCount += 1;
-    ensureResizeListener();
-    syncDocumentState();
+    if (options.lockScroll) {
+      lockedModalCount += 1;
+      ensureResizeListener();
+      syncDocumentState();
+    }
+    if (options.draggable) {
+      commitConstrainedOffsets();
+    }
     focusInitialElement();
     options.onOpen?.();
   }
@@ -176,8 +373,12 @@ export function createModalHost(container, config = {}) {
     }
     isOpen = false;
     updateContainerState();
-    activeModalCount = Math.max(0, activeModalCount - 1);
-    syncDocumentState();
+    stopDragging();
+    resetPosition();
+    if (options.lockScroll) {
+      lockedModalCount = Math.max(0, lockedModalCount - 1);
+      syncDocumentState();
+    }
     options.onClose?.();
     const shouldRestoreFocus = restoreFocus && previouslyFocusedElement && typeof previouslyFocusedElement.focus === 'function';
     if (shouldRestoreFocus) {
@@ -262,6 +463,7 @@ export function createModalHost(container, config = {}) {
     isOpen: () => isOpen,
     requestClose,
     refreshFocusTrap: refreshFocusCycle,
+    resetPosition,
     setSize(size) {
       if (!size) return;
       container.dataset.modalSize = size;
@@ -289,6 +491,32 @@ export function createModalHost(container, config = {}) {
       if (typeof next.closeOnEscape === 'boolean') {
         options.closeOnEscape = next.closeOnEscape;
       }
+      if (typeof next.lockScroll === 'boolean') {
+        options.lockScroll = next.lockScroll;
+        container.dataset.modalMode = options.lockScroll ? 'modal' : 'floating';
+        container.dataset.modalOverlay = options.lockScroll ? 'scrim' : 'none';
+        if (isOpen && options.draggable) {
+          commitConstrainedOffsets();
+        }
+      }
+      if (typeof next.draggable === 'boolean') {
+        options.draggable = next.draggable;
+        if (options.draggable) {
+          container.dataset.modalDraggable = 'true';
+          if (isOpen) {
+            commitConstrainedOffsets();
+          }
+        } else {
+          delete container.dataset.modalDraggable;
+          stopDragging();
+          if (isOpen) {
+            resetPosition();
+          }
+        }
+      }
+      if (typeof next.dragHandle === 'string' || next.dragHandle === null) {
+        options.dragHandle = typeof next.dragHandle === 'string' ? next.dragHandle : null;
+      }
       if (typeof next.onOpen === 'function') {
         options.onOpen = next.onOpen;
       }
@@ -299,6 +527,9 @@ export function createModalHost(container, config = {}) {
     destroy() {
       overlay.removeEventListener('pointerdown', handlePointerDown);
       container.removeEventListener('keydown', handleKeydown);
+      surface.removeEventListener('pointerdown', handleSurfacePointerDown);
+      window.removeEventListener('resize', handleViewportResize);
+      window.removeEventListener('orientationchange', handleViewportResize);
       closeModal({ restoreFocus: false });
       container.innerHTML = '';
       container.classList.remove('modal-host');
@@ -309,7 +540,16 @@ export function createModalHost(container, config = {}) {
       container.removeAttribute('aria-describedby');
       delete container.dataset.modalSize;
       delete container.dataset.modalTone;
+      delete container.dataset.modalMode;
+      delete container.dataset.modalOverlay;
+      delete container.dataset.modalDraggable;
       delete container.dataset.open;
+      if (hostPlaceholder && hostPlaceholder.parentNode) {
+        hostPlaceholder.parentNode.replaceChild(container, hostPlaceholder);
+        hostPlaceholder = null;
+      } else if (originalParent && !originalParent.contains(container)) {
+        originalParent.appendChild(container);
+      }
     },
     get surface() {
       return surface;
