@@ -119,7 +119,7 @@ function updateVisibility() {
     panelRef.setAttribute("hidden", "");
   }
 
-  panelRef.setAttribute("aria-modal", "false");
+  panelRef.setAttribute("aria-modal", isOpen ? "true" : "false");
   panelRef.setAttribute("aria-hidden", isOpen ? "false" : "true");
   panelRef.dataset.open = isOpen ? "true" : "false";
 

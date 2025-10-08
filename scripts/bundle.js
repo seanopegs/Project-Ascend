@@ -778,6 +778,22 @@ var GameApp = (() => {
       modal.style.left = `${nextLeft}px`;
       modal.style.top = `${nextTop}px`;
     }
+    function ensureWithinViewportBounds() {
+      const rect = modal.getBoundingClientRect();
+      const availableWidth = window.innerWidth;
+      const availableHeight = window.innerHeight;
+      const minLeft = DEFAULT_MARGIN;
+      const maxLeft = Math.max(minLeft, availableWidth - rect.width - DEFAULT_MARGIN);
+      const minTop = DEFAULT_MARGIN;
+      const maxTop = Math.max(minTop, availableHeight - rect.height - DEFAULT_MARGIN);
+      if (modal.style.transform.includes("-50%")) {
+        return;
+      }
+      const clampedLeft = clamp(rect.left, minLeft, maxLeft);
+      const clampedTop = clamp(rect.top, minTop, maxTop);
+      modal.style.left = `${clampedLeft}px`;
+      modal.style.top = `${clampedTop}px`;
+    }
     function endDrag(event) {
       if (pointerId !== null && event.pointerId !== pointerId) {
         return;
@@ -790,6 +806,7 @@ var GameApp = (() => {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", endDrag);
       window.removeEventListener("pointercancel", endDrag);
+      ensureWithinViewportBounds();
     }
     function handlePointerMove(event) {
       if (pointerId === null || event.pointerId !== pointerId) {
@@ -830,6 +847,14 @@ var GameApp = (() => {
       event.preventDefault();
     }
     handle.addEventListener("pointerdown", startDrag);
+    function handleResize() {
+      if (hasCustomPosition) {
+        ensureWithinViewportBounds();
+      } else {
+        applyCenterPosition();
+      }
+    }
+    window.addEventListener("resize", handleResize);
     const controller = {
       center: () => {
         applyCenterPosition();
@@ -840,6 +865,7 @@ var GameApp = (() => {
         window.removeEventListener("pointermove", handlePointerMove);
         window.removeEventListener("pointerup", endDrag);
         window.removeEventListener("pointercancel", endDrag);
+        window.removeEventListener("resize", handleResize);
       }
     };
     applyCenterPosition();
@@ -848,14 +874,42 @@ var GameApp = (() => {
 
   // scripts/ui/modalManager.js
   var openModalCount = 0;
+  function refreshDocumentModalState() {
+    const html = document.documentElement;
+    const body = document.body;
+    if (!html || !body) {
+      return;
+    }
+    const hasModal = openModalCount > 0;
+    html.classList.toggle("modal-open", hasModal);
+    body.classList.toggle("modal-open", hasModal);
+    if (hasModal) {
+      const scrollbarGap = Math.max(0, window.innerWidth - html.clientWidth);
+      if (scrollbarGap) {
+        body.style.setProperty("--modal-scrollbar-gap", `${scrollbarGap}px`);
+      } else {
+        body.style.removeProperty("--modal-scrollbar-gap");
+      }
+    } else {
+      body.style.removeProperty("--modal-scrollbar-gap");
+    }
+  }
+  function handleViewportResize() {
+    if (openModalCount > 0) {
+      refreshDocumentModalState();
+    }
+  }
+  window.addEventListener("resize", handleViewportResize, { passive: true });
   function registerModalOpen() {
     openModalCount += 1;
+    refreshDocumentModalState();
   }
   function registerModalClose() {
     if (openModalCount === 0) {
       return;
     }
     openModalCount -= 1;
+    refreshDocumentModalState();
   }
 
   // scripts/ui/statsPanel.js
@@ -983,6 +1037,7 @@ var GameApp = (() => {
       registerModalOpen();
       containerRef.hidden = false;
       containerRef.removeAttribute("hidden");
+      containerRef.setAttribute("aria-modal", "true");
       containerRef.setAttribute("aria-hidden", "false");
       containerRef.dataset.open = "true";
       if (floatingController && !floatingController.hasCustomPosition()) {
@@ -997,6 +1052,7 @@ var GameApp = (() => {
       if (!containerRef.hasAttribute("hidden")) {
         containerRef.setAttribute("hidden", "");
       }
+      containerRef.setAttribute("aria-modal", "false");
       containerRef.setAttribute("aria-hidden", "true");
       containerRef.dataset.open = "false";
     }
@@ -1367,7 +1423,7 @@ var GameApp = (() => {
     } else if (!panelRef.hasAttribute("hidden")) {
       panelRef.setAttribute("hidden", "");
     }
-    panelRef.setAttribute("aria-modal", "false");
+    panelRef.setAttribute("aria-modal", isOpen ? "true" : "false");
     panelRef.setAttribute("aria-hidden", isOpen ? "false" : "true");
     panelRef.dataset.open = isOpen ? "true" : "false";
     const expanded = isOpen ? "true" : "false";
@@ -1727,14 +1783,24 @@ var GameApp = (() => {
       allStatsMetadata.set(key, {
         alias: stat.alias,
         formatChange: (amount) => formatChange(Number(amount.toFixed(1))),
-        positiveIsGood: true
+        positiveIsGood: true,
+        color: stat.color,
+        colorStrong: stat.colorStrong,
+        colorSoft: stat.colorSoft
       });
     });
     Object.entries(statusConfig).forEach(([key, meta]) => {
+      const negative = meta.positiveIsGood === false;
+      const fallbackColor = negative ? "#fb7185" : "#38bdf8";
+      const fallbackColorStrong = negative ? "#f43f5e" : "#0ea5e9";
+      const fallbackColorSoft = negative ? "rgba(251, 113, 133, 0.22)" : "rgba(56, 189, 248, 0.18)";
       allStatsMetadata.set(key, {
         alias: meta.alias,
         formatChange: meta.formatChange,
-        positiveIsGood: meta.positiveIsGood ?? true
+        positiveIsGood: meta.positiveIsGood ?? true,
+        color: meta.color ?? fallbackColor,
+        colorStrong: meta.colorStrong ?? fallbackColorStrong,
+        colorSoft: meta.colorSoft ?? fallbackColorSoft
       });
     });
   }
@@ -2010,16 +2076,30 @@ var GameApp = (() => {
     return Array.from(combined.values()).filter((item) => item.amount !== 0);
   }
   function describeEffects(effects = {}) {
-    if (!effects) return "";
+    if (!effects) {
+      return { text: "", segments: [] };
+    }
     const parts = [];
+    const segments = [];
     Object.entries(effects).forEach(([key, amount]) => {
       if (!amount) return;
       const metadata = allStatsMetadata.get(key);
       if (!metadata) return;
       const formatter = metadata.formatChange ?? formatChange;
-      parts.push(`${metadata.alias} ${formatter(amount)}`);
+      const formatted = formatter(amount);
+      parts.push(`${metadata.alias} ${formatted}`);
+      segments.push({
+        key,
+        alias: metadata.alias,
+        amount,
+        formatted,
+        positiveIsGood: metadata.positiveIsGood !== false,
+        color: metadata.color,
+        colorStrong: metadata.colorStrong,
+        colorSoft: metadata.colorSoft
+      });
     });
-    return parts.join(", ");
+    return { text: parts.join(", "), segments };
   }
   function describeCombinedEffects(baseEffects = {}, statusEffects = {}) {
     const combined = {};
@@ -2147,15 +2227,51 @@ var GameApp = (() => {
       const outcomePreview = resolveActionOutcome(action, worldState);
       const preview = describeCombinedEffects(outcomePreview.baseEffects, outcomePreview.statusChanges);
       const durationText = formatDuration(action.time ?? 1);
-      if (preview) {
+      const ariaParts = [`${action.label}.`, `Durasi ${durationText}.`];
+      if (preview?.segments?.length) {
         const hint = document.createElement("span");
         hint.className = "choice-hint";
-        hint.textContent = preview;
+        hint.setAttribute("aria-hidden", "true");
+        preview.segments.forEach((segment, index) => {
+          const chip = document.createElement("span");
+          chip.className = "stat-chip";
+          chip.dataset.stat = segment.key;
+          const direction = segment.amount > 0 ? "increase" : "decrease";
+          const positiveOutcome = segment.amount > 0 && segment.positiveIsGood || segment.amount < 0 && !segment.positiveIsGood;
+          chip.dataset.direction = direction;
+          chip.dataset.outcome = positiveOutcome ? "positive" : "negative";
+          chip.textContent = `${segment.alias} ${segment.formatted}`;
+          if (segment.color) {
+            chip.style.setProperty("--stat-chip-color", segment.color);
+          }
+          if (segment.colorStrong) {
+            chip.style.setProperty("--stat-chip-color-strong", segment.colorStrong);
+          }
+          if (segment.colorSoft) {
+            chip.style.setProperty("--stat-chip-color-soft", segment.colorSoft);
+          }
+          hint.appendChild(chip);
+          if (index < preview.segments.length - 1) {
+            const separator = document.createElement("span");
+            separator.className = "stat-chip-separator";
+            separator.setAttribute("aria-hidden", "true");
+            separator.textContent = "\u2022";
+            hint.appendChild(separator);
+          }
+        });
         button.appendChild(hint);
-        button.setAttribute("aria-label", `${action.label}. Durasi ${durationText}. ${preview}`);
-      } else {
-        button.setAttribute("aria-label", `${action.label}. Durasi ${durationText}.`);
+        if (preview.text) {
+          ariaParts.push(preview.text);
+        }
+      } else if (preview?.text) {
+        const hint = document.createElement("span");
+        hint.className = "choice-hint";
+        hint.textContent = preview.text;
+        hint.setAttribute("aria-hidden", "true");
+        button.appendChild(hint);
+        ariaParts.push(preview.text);
       }
+      button.setAttribute("aria-label", ariaParts.join(" ").trim());
       const duration = document.createElement("span");
       duration.className = "choice-duration";
       duration.textContent = `Durasi: ${durationText}`;
