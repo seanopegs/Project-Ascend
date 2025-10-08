@@ -25,10 +25,8 @@ export function createFloatingWindow({ container, modal, handle }) {
   }
 
   let pointerId = null;
-  let startPointerX = 0;
-  let startPointerY = 0;
-  let startLeft = 0;
-  let startTop = 0;
+  let offsetX = 0;
+  let offsetY = 0;
   let modalWidth = 0;
   let modalHeight = 0;
   let hasCustomPosition = false;
@@ -57,32 +55,27 @@ export function createFloatingWindow({ container, modal, handle }) {
   }
 
   function updatePosition(clientX, clientY) {
-    const deltaX = clientX - startPointerX;
-    const deltaY = clientY - startPointerY;
     const availableWidth = window.innerWidth;
     const availableHeight = window.innerHeight;
     const { min: minLeft, max: maxLeft } = computeBounds(modalWidth, availableWidth);
     const { min: minTop, max: maxTop } = computeBounds(modalHeight, availableHeight);
-    const nextLeft = clamp(startLeft + deltaX, minLeft, maxLeft);
-    const nextTop = clamp(startTop + deltaY, minTop, maxTop);
+    const nextLeft = clamp(clientX - offsetX, minLeft, maxLeft);
+    const nextTop = clamp(clientY - offsetY, minTop, maxTop);
 
     modal.style.left = `${nextLeft}px`;
     modal.style.top = `${nextTop}px`;
   }
 
   function convertToAbsolutePosition() {
-    if (!modal.style.transform.includes("-50%")) {
-      return;
-    }
-
     const rect = modal.getBoundingClientRect();
-    modal.style.transform = "translate(0, 0)";
-    modal.style.left = `${rect.left}px`;
-    modal.style.top = `${rect.top}px`;
-    startLeft = rect.left;
-    startTop = rect.top;
+    if (modal.style.transform.includes("-50%")) {
+      modal.style.transform = "translate(0, 0)";
+      modal.style.left = `${rect.left}px`;
+      modal.style.top = `${rect.top}px`;
+    }
     modalWidth = rect.width;
     modalHeight = rect.height;
+    return rect;
   }
 
   function ensureWithinViewportBounds() {
@@ -91,6 +84,9 @@ export function createFloatingWindow({ container, modal, handle }) {
     const availableHeight = window.innerHeight;
     const { min: minLeft, max: maxLeft } = computeBounds(rect.width, availableWidth);
     const { min: minTop, max: maxTop } = computeBounds(rect.height, availableHeight);
+
+    modalWidth = rect.width;
+    modalHeight = rect.height;
 
     if (modal.style.transform.includes("-50%")) {
       return;
@@ -127,7 +123,6 @@ export function createFloatingWindow({ container, modal, handle }) {
     }
     event.preventDefault();
     if (!isDragging) {
-      convertToAbsolutePosition();
       modal.dataset.dragging = "true";
       container.dataset.dragging = "true";
       handle.style.cursor = "grabbing";
@@ -146,13 +141,12 @@ export function createFloatingWindow({ container, modal, handle }) {
     }
     pointerId = event.pointerId;
     handle.setPointerCapture?.(pointerId);
-    const rect = modal.getBoundingClientRect();
-    startPointerX = event.clientX;
-    startPointerY = event.clientY;
-    startLeft = rect.left;
-    startTop = rect.top;
-    modalWidth = rect.width;
-    modalHeight = rect.height;
+    const rect = convertToAbsolutePosition();
+    const { left, top, width, height } = rect;
+    offsetX = event.clientX - left;
+    offsetY = event.clientY - top;
+    modalWidth = width;
+    modalHeight = height;
     window.addEventListener("pointermove", handlePointerMove);
     window.addEventListener("pointerup", endDrag);
     window.addEventListener("pointercancel", endDrag);
