@@ -4,7 +4,7 @@ const FOCUSABLE_SELECTORS = [
   '[contenteditable]','[tabindex]:not([tabindex="-1"])'
 ].join(',');
 
-let activeModalCount = 0;
+let lockedModalCount = 0;
 let resizeListenerAttached = false;
 
 function clamp(value, min, max) {
@@ -18,7 +18,7 @@ function syncDocumentState() {
     return;
   }
 
-  const hasOpenModal = activeModalCount > 0;
+  const hasOpenModal = lockedModalCount > 0;
   html.classList.toggle('modal-open', hasOpenModal);
   body.classList.toggle('modal-open', hasOpenModal);
 
@@ -45,7 +45,7 @@ function syncDocumentState() {
 }
 
 function handleWindowResize() {
-  if (activeModalCount > 0) {
+  if (lockedModalCount > 0) {
     syncDocumentState();
   }
 }
@@ -91,6 +91,9 @@ export function createModalHost(container, config = {}) {
     trapFocus: config.trapFocus !== false,
     closeOnBackdrop: config.closeOnBackdrop !== false,
     closeOnEscape: config.closeOnEscape !== false,
+    lockScroll: config.lockScroll !== false,
+    draggable: config.draggable === true,
+    dragHandle: typeof config.dragHandle === 'string' ? config.dragHandle : null,
     onOpen: typeof config.onOpen === 'function' ? config.onOpen : null,
     onClose: typeof config.onClose === 'function' ? config.onClose : null,
   };
@@ -101,6 +104,11 @@ export function createModalHost(container, config = {}) {
   container.classList.add('modal-host');
   container.dataset.modalSize = options.size;
   container.dataset.modalTone = options.tone;
+  container.dataset.modalMode = options.lockScroll ? 'modal' : 'floating';
+  container.dataset.modalOverlay = options.lockScroll ? 'scrim' : 'none';
+  if (options.draggable) {
+    container.dataset.modalDraggable = 'true';
+  }
   container.setAttribute('role', options.role);
   if (options.labelledBy) {
     container.setAttribute('aria-labelledby', options.labelledBy);
@@ -132,6 +140,7 @@ export function createModalHost(container, config = {}) {
   let isOpen = false;
   let focusableElements = [];
   let previouslyFocusedElement = null;
+  let dragState = null;
 
   function updateContainerState() {
     container.dataset.open = isOpen ? 'true' : 'false';
@@ -145,6 +154,10 @@ export function createModalHost(container, config = {}) {
   }
 
   function refreshFocusCycle() {
+    if (options.trapFocus === false) {
+      focusableElements = [];
+      return;
+    }
     focusableElements = getFocusableElements(surface);
   }
 
@@ -156,16 +169,121 @@ export function createModalHost(container, config = {}) {
     });
   }
 
+  function resetPosition() {
+    surface.style.removeProperty('--modal-offset-x');
+    surface.style.removeProperty('--modal-offset-y');
+    surface.classList.remove('is-dragging');
+  }
+
+  function applyOffset(offsetX, offsetY) {
+    surface.style.setProperty('--modal-offset-x', `${offsetX}px`);
+    surface.style.setProperty('--modal-offset-y', `${offsetY}px`);
+  }
+
+  function stopDragging() {
+    if (!dragState) {
+      return;
+    }
+    window.removeEventListener('pointermove', handlePointerMove);
+    window.removeEventListener('pointerup', handlePointerUp);
+    window.removeEventListener('pointercancel', handlePointerUp);
+    surface.releasePointerCapture?.(dragState.pointerId);
+    surface.classList.remove('is-dragging');
+    dragState = null;
+  }
+
+  function handlePointerMove(event) {
+    if (!dragState || event.pointerId !== dragState.pointerId) {
+      return;
+    }
+
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const marginX = Math.min(32, Math.floor(viewportWidth * 0.1));
+    const marginY = Math.min(32, Math.floor(viewportHeight * 0.1));
+
+    const minLeft = Math.min(marginX, viewportWidth - dragState.width);
+    const maxLeft = Math.max(viewportWidth - dragState.width - marginX, marginX);
+    const minTop = Math.min(marginY, viewportHeight - dragState.height);
+    const maxTop = Math.max(viewportHeight - dragState.height - marginY, marginY);
+
+    const rawLeft = event.clientX - dragState.offsetX;
+    const rawTop = event.clientY - dragState.offsetY;
+
+    const nextLeft = clamp(rawLeft, Math.min(minLeft, maxLeft), Math.max(minLeft, maxLeft));
+    const nextTop = clamp(rawTop, Math.min(minTop, maxTop), Math.max(minTop, maxTop));
+
+    const nextCenterX = nextLeft + dragState.width / 2;
+    const nextCenterY = nextTop + dragState.height / 2;
+
+    const offsetX = nextCenterX - viewportWidth / 2;
+    const offsetY = nextCenterY - viewportHeight / 2;
+
+    applyOffset(offsetX, offsetY);
+  }
+
+  function handlePointerUp(event) {
+    if (!dragState || event.pointerId !== dragState.pointerId) {
+      return;
+    }
+    stopDragging();
+  }
+
+  function beginDrag(event) {
+    if (event.button !== 0 || !options.draggable) {
+      return;
+    }
+
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+
+    if (options.dragHandle) {
+      const handle = target.closest(options.dragHandle);
+      if (!handle || !surface.contains(handle)) {
+        return;
+      }
+    }
+
+    const rect = surface.getBoundingClientRect();
+    dragState = {
+      pointerId: event.pointerId,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+      width: rect.width,
+      height: rect.height,
+    };
+
+    surface.setPointerCapture?.(event.pointerId);
+    surface.classList.add('is-dragging');
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+
+    event.preventDefault();
+  }
+
+  function handleSurfacePointerDown(event) {
+    beginDrag(event);
+  }
+
+  surface.addEventListener('pointerdown', handleSurfacePointerDown);
+
   function openModal() {
     if (isOpen) {
       return;
     }
+    resetPosition();
     previouslyFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     isOpen = true;
     updateContainerState();
-    activeModalCount += 1;
-    ensureResizeListener();
-    syncDocumentState();
+    if (options.lockScroll) {
+      lockedModalCount += 1;
+      ensureResizeListener();
+      syncDocumentState();
+    }
     focusInitialElement();
     options.onOpen?.();
   }
@@ -176,8 +294,11 @@ export function createModalHost(container, config = {}) {
     }
     isOpen = false;
     updateContainerState();
-    activeModalCount = Math.max(0, activeModalCount - 1);
-    syncDocumentState();
+    stopDragging();
+    if (options.lockScroll) {
+      lockedModalCount = Math.max(0, lockedModalCount - 1);
+      syncDocumentState();
+    }
     options.onClose?.();
     const shouldRestoreFocus = restoreFocus && previouslyFocusedElement && typeof previouslyFocusedElement.focus === 'function';
     if (shouldRestoreFocus) {
@@ -262,6 +383,7 @@ export function createModalHost(container, config = {}) {
     isOpen: () => isOpen,
     requestClose,
     refreshFocusTrap: refreshFocusCycle,
+    resetPosition,
     setSize(size) {
       if (!size) return;
       container.dataset.modalSize = size;
@@ -289,6 +411,23 @@ export function createModalHost(container, config = {}) {
       if (typeof next.closeOnEscape === 'boolean') {
         options.closeOnEscape = next.closeOnEscape;
       }
+      if (typeof next.lockScroll === 'boolean') {
+        options.lockScroll = next.lockScroll;
+        container.dataset.modalMode = options.lockScroll ? 'modal' : 'floating';
+        container.dataset.modalOverlay = options.lockScroll ? 'scrim' : 'none';
+      }
+      if (typeof next.draggable === 'boolean') {
+        options.draggable = next.draggable;
+        if (options.draggable) {
+          container.dataset.modalDraggable = 'true';
+        } else {
+          delete container.dataset.modalDraggable;
+          stopDragging();
+        }
+      }
+      if (typeof next.dragHandle === 'string' || next.dragHandle === null) {
+        options.dragHandle = typeof next.dragHandle === 'string' ? next.dragHandle : null;
+      }
       if (typeof next.onOpen === 'function') {
         options.onOpen = next.onOpen;
       }
@@ -299,6 +438,7 @@ export function createModalHost(container, config = {}) {
     destroy() {
       overlay.removeEventListener('pointerdown', handlePointerDown);
       container.removeEventListener('keydown', handleKeydown);
+      surface.removeEventListener('pointerdown', handleSurfacePointerDown);
       closeModal({ restoreFocus: false });
       container.innerHTML = '';
       container.classList.remove('modal-host');
@@ -309,6 +449,9 @@ export function createModalHost(container, config = {}) {
       container.removeAttribute('aria-describedby');
       delete container.dataset.modalSize;
       delete container.dataset.modalTone;
+      delete container.dataset.modalMode;
+      delete container.dataset.modalOverlay;
+      delete container.dataset.modalDraggable;
       delete container.dataset.open;
     },
     get surface() {
