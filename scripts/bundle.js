@@ -719,209 +719,311 @@ var GameApp = (() => {
     }
   ];
 
-  // scripts/ui/floatingWindow.js
-  var DEFAULT_MARGIN = 24;
+  // scripts/ui/modalSystem.js
+  var FOCUSABLE_SELECTORS = [
+    "a[href]",
+    "area[href]",
+    "button:not([disabled])",
+    'input:not([disabled]):not([type="hidden"])',
+    "select:not([disabled])",
+    "textarea:not([disabled])",
+    "iframe",
+    "audio[controls]",
+    "video[controls]",
+    "[contenteditable]",
+    '[tabindex]:not([tabindex="-1"])'
+  ].join(",");
+  var activeModalCount = 0;
+  var resizeListenerAttached = false;
   function clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);
   }
-  function isInteractiveElement(element) {
-    if (!(element instanceof HTMLElement)) {
-      return false;
-    }
-    return Boolean(
-      element.closest(
-        'button, a, input, textarea, select, [data-no-drag], [role="button"], [role="tab"], [role="menuitem"]'
-      )
-    );
-  }
-  function createFloatingWindow({ container, modal, handle }) {
-    if (!container || !modal || !handle) {
-      return {
-        center: () => {
-        },
-        destroy: () => {
-        },
-        hasCustomPosition: () => false
-      };
-    }
-    let pointerId = null;
-    let offsetX = 0;
-    let offsetY = 0;
-    let modalWidth = 0;
-    let modalHeight = 0;
-    let hasCustomPosition = false;
-    let isDragging = false;
-    container.classList.add("floating-overlay");
-    modal.classList.add("floating-window");
-    handle.classList.add("floating-window__handle");
-    handle.style.cursor = "grab";
-    function applyCenterPosition() {
-      hasCustomPosition = false;
-      modal.style.transform = "translate(-50%, -50%)";
-      modal.style.left = "50%";
-      modal.style.top = "50%";
-      modal.dataset.dragging = "false";
-      container.dataset.dragging = "false";
-    }
-    function computeBounds(size, viewportSize) {
-      const limit = viewportSize - DEFAULT_MARGIN - size;
-      return {
-        min: Math.min(DEFAULT_MARGIN, limit),
-        max: Math.max(DEFAULT_MARGIN, limit)
-      };
-    }
-    function updatePosition(clientX, clientY) {
-      const availableWidth = window.innerWidth;
-      const availableHeight = window.innerHeight;
-      const { min: minLeft, max: maxLeft } = computeBounds(modalWidth, availableWidth);
-      const { min: minTop, max: maxTop } = computeBounds(modalHeight, availableHeight);
-      const nextLeft = clamp(clientX - offsetX, minLeft, maxLeft);
-      const nextTop = clamp(clientY - offsetY, minTop, maxTop);
-      modal.style.left = `${nextLeft}px`;
-      modal.style.top = `${nextTop}px`;
-    }
-    function convertToAbsolutePosition() {
-      const rect = modal.getBoundingClientRect();
-      if (modal.style.transform.includes("-50%")) {
-        modal.style.transform = "translate(0, 0)";
-        modal.style.left = `${rect.left}px`;
-        modal.style.top = `${rect.top}px`;
-      }
-      modalWidth = rect.width;
-      modalHeight = rect.height;
-      return rect;
-    }
-    function ensureWithinViewportBounds() {
-      const rect = modal.getBoundingClientRect();
-      const availableWidth = window.innerWidth;
-      const availableHeight = window.innerHeight;
-      const { min: minLeft, max: maxLeft } = computeBounds(rect.width, availableWidth);
-      const { min: minTop, max: maxTop } = computeBounds(rect.height, availableHeight);
-      modalWidth = rect.width;
-      modalHeight = rect.height;
-      if (modal.style.transform.includes("-50%")) {
-        return;
-      }
-      const clampedLeft = clamp(rect.left, minLeft, maxLeft);
-      const clampedTop = clamp(rect.top, minTop, maxTop);
-      modal.style.left = `${clampedLeft}px`;
-      modal.style.top = `${clampedTop}px`;
-    }
-    function endDrag(event) {
-      if (pointerId !== null && event.pointerId !== pointerId) {
-        return;
-      }
-      handle.releasePointerCapture?.(pointerId);
-      pointerId = null;
-      handle.style.cursor = "grab";
-      if (isDragging) {
-        modal.dataset.dragging = "false";
-        container.dataset.dragging = "false";
-      }
-      isDragging = false;
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", endDrag);
-      window.removeEventListener("pointercancel", endDrag);
-      ensureWithinViewportBounds();
-    }
-    function handlePointerMove(event) {
-      if (pointerId === null || event.pointerId !== pointerId) {
-        return;
-      }
-      event.preventDefault();
-      if (!isDragging) {
-        modal.dataset.dragging = "true";
-        container.dataset.dragging = "true";
-        handle.style.cursor = "grabbing";
-        isDragging = true;
-      }
-      hasCustomPosition = true;
-      updatePosition(event.clientX, event.clientY);
-    }
-    function startDrag(event) {
-      if (pointerId !== null) {
-        return;
-      }
-      if (isInteractiveElement(event.target)) {
-        return;
-      }
-      pointerId = event.pointerId;
-      handle.setPointerCapture?.(pointerId);
-      const rect = convertToAbsolutePosition();
-      const { left, top, width, height } = rect;
-      offsetX = event.clientX - left;
-      offsetY = event.clientY - top;
-      modalWidth = width;
-      modalHeight = height;
-      window.addEventListener("pointermove", handlePointerMove);
-      window.addEventListener("pointerup", endDrag);
-      window.addEventListener("pointercancel", endDrag);
-      event.preventDefault();
-    }
-    handle.addEventListener("pointerdown", startDrag);
-    function handleResize() {
-      if (hasCustomPosition) {
-        ensureWithinViewportBounds();
-      } else {
-        applyCenterPosition();
-      }
-    }
-    window.addEventListener("resize", handleResize);
-    const controller = {
-      center: () => {
-        applyCenterPosition();
-      },
-      hasCustomPosition: () => hasCustomPosition,
-      destroy: () => {
-        handle.removeEventListener("pointerdown", startDrag);
-        window.removeEventListener("pointermove", handlePointerMove);
-        window.removeEventListener("pointerup", endDrag);
-        window.removeEventListener("pointercancel", endDrag);
-        window.removeEventListener("resize", handleResize);
-      }
-    };
-    applyCenterPosition();
-    return controller;
-  }
-
-  // scripts/ui/modalManager.js
-  var openModalCount = 0;
-  function refreshDocumentModalState() {
+  function syncDocumentState() {
     const html = document.documentElement;
     const body = document.body;
     if (!html || !body) {
       return;
     }
-    const hasModal = openModalCount > 0;
-    html.classList.toggle("modal-open", hasModal);
-    body.classList.toggle("modal-open", hasModal);
-    if (hasModal) {
-      const scrollbarGap = Math.max(0, window.innerWidth - html.clientWidth);
-      if (scrollbarGap) {
+    const hasOpenModal = activeModalCount > 0;
+    html.classList.toggle("modal-open", hasOpenModal);
+    body.classList.toggle("modal-open", hasOpenModal);
+    if (hasOpenModal) {
+      const scrollbarGap = clamp(window.innerWidth - html.clientWidth, 0, 48);
+      if (scrollbarGap > 0) {
         body.style.setProperty("--modal-scrollbar-gap", `${scrollbarGap}px`);
       } else {
         body.style.removeProperty("--modal-scrollbar-gap");
       }
+      body.dataset.modalLocked = "true";
+      if (!body.dataset.previousOverflow) {
+        body.dataset.previousOverflow = body.style.overflow || "";
+      }
+      body.style.overflow = "hidden";
     } else {
       body.style.removeProperty("--modal-scrollbar-gap");
+      if (body.dataset.modalLocked) {
+        body.style.overflow = body.dataset.previousOverflow || "";
+      }
+      delete body.dataset.modalLocked;
+      delete body.dataset.previousOverflow;
     }
   }
-  function handleViewportResize() {
-    if (openModalCount > 0) {
-      refreshDocumentModalState();
+  function handleWindowResize() {
+    if (activeModalCount > 0) {
+      syncDocumentState();
     }
   }
-  window.addEventListener("resize", handleViewportResize, { passive: true });
-  function registerModalOpen() {
-    openModalCount += 1;
-    refreshDocumentModalState();
-  }
-  function registerModalClose() {
-    if (openModalCount === 0) {
-      return;
+  function ensureResizeListener() {
+    if (!resizeListenerAttached) {
+      window.addEventListener("resize", handleWindowResize, { passive: true });
+      resizeListenerAttached = true;
     }
-    openModalCount -= 1;
-    refreshDocumentModalState();
+  }
+  function getFocusableElements(container) {
+    if (!container) {
+      return [];
+    }
+    const elements = Array.from(container.querySelectorAll(FOCUSABLE_SELECTORS));
+    return elements.filter((element) => {
+      if (!(element instanceof HTMLElement)) {
+        return false;
+      }
+      if (element.hasAttribute("disabled")) {
+        return false;
+      }
+      if (element.getAttribute("aria-hidden") === "true") {
+        return false;
+      }
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 || rect.height > 0;
+    });
+  }
+  function createModalHost(container, config = {}) {
+    if (!container) {
+      throw new Error("Modal host requires a valid container element");
+    }
+    const options = {
+      labelledBy: config.labelledBy || null,
+      describedBy: config.describedBy || null,
+      role: config.role || "dialog",
+      size: config.size || "md",
+      tone: config.tone || "midnight",
+      trapFocus: config.trapFocus !== false,
+      closeOnBackdrop: config.closeOnBackdrop !== false,
+      closeOnEscape: config.closeOnEscape !== false,
+      onOpen: typeof config.onOpen === "function" ? config.onOpen : null,
+      onClose: typeof config.onClose === "function" ? config.onClose : null
+    };
+    let requestCloseHandler = typeof config.onRequestClose === "function" ? config.onRequestClose : null;
+    container.innerHTML = "";
+    container.classList.add("modal-host");
+    container.dataset.modalSize = options.size;
+    container.dataset.modalTone = options.tone;
+    container.setAttribute("role", options.role);
+    if (options.labelledBy) {
+      container.setAttribute("aria-labelledby", options.labelledBy);
+    }
+    if (options.describedBy) {
+      container.setAttribute("aria-describedby", options.describedBy);
+    }
+    container.setAttribute("aria-modal", "false");
+    container.setAttribute("aria-hidden", "true");
+    container.hidden = true;
+    container.dataset.open = "false";
+    const layer = document.createElement("div");
+    layer.className = "modal-layer";
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.setAttribute("role", "presentation");
+    const surface = document.createElement("div");
+    surface.className = "modal-surface";
+    surface.setAttribute("role", "document");
+    surface.tabIndex = -1;
+    layer.appendChild(overlay);
+    layer.appendChild(surface);
+    container.appendChild(layer);
+    let isOpen = false;
+    let focusableElements = [];
+    let previouslyFocusedElement = null;
+    function updateContainerState() {
+      container.dataset.open = isOpen ? "true" : "false";
+      container.setAttribute("aria-hidden", isOpen ? "false" : "true");
+      container.setAttribute("aria-modal", isOpen ? "true" : "false");
+      if (isOpen) {
+        container.removeAttribute("hidden");
+      } else if (!container.hasAttribute("hidden")) {
+        container.setAttribute("hidden", "");
+      }
+    }
+    function refreshFocusCycle() {
+      focusableElements = getFocusableElements(surface);
+    }
+    function focusInitialElement() {
+      refreshFocusCycle();
+      const target = focusableElements[0] || surface;
+      window.requestAnimationFrame(() => {
+        target.focus({ preventScroll: true });
+      });
+    }
+    function openModal() {
+      if (isOpen) {
+        return;
+      }
+      previouslyFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      isOpen = true;
+      updateContainerState();
+      activeModalCount += 1;
+      ensureResizeListener();
+      syncDocumentState();
+      focusInitialElement();
+      options.onOpen?.();
+    }
+    function closeModal({ restoreFocus = true } = {}) {
+      if (!isOpen) {
+        return;
+      }
+      isOpen = false;
+      updateContainerState();
+      activeModalCount = Math.max(0, activeModalCount - 1);
+      syncDocumentState();
+      options.onClose?.();
+      const shouldRestoreFocus = restoreFocus && previouslyFocusedElement && typeof previouslyFocusedElement.focus === "function";
+      if (shouldRestoreFocus) {
+        previouslyFocusedElement.focus();
+      }
+      previouslyFocusedElement = null;
+    }
+    function handleFocusTrap(event) {
+      if (!isOpen || options.trapFocus === false || event.key !== "Tab") {
+        return;
+      }
+      refreshFocusCycle();
+      if (!focusableElements.length) {
+        event.preventDefault();
+        surface.focus({ preventScroll: true });
+        return;
+      }
+      const currentIndex = focusableElements.indexOf(event.target);
+      const lastIndex = focusableElements.length - 1;
+      if (event.shiftKey) {
+        if (currentIndex <= 0) {
+          event.preventDefault();
+          focusableElements[lastIndex].focus();
+        }
+      } else {
+        if (currentIndex === lastIndex) {
+          event.preventDefault();
+          focusableElements[0].focus();
+        }
+      }
+    }
+    function requestClose(reason) {
+      if (requestCloseHandler) {
+        const result = requestCloseHandler(reason);
+        if (result === false) {
+          return;
+        }
+      }
+      closeModal();
+    }
+    function handleKeydown(event) {
+      if (!isOpen) {
+        return;
+      }
+      if (event.key === "Escape" && options.closeOnEscape !== false) {
+        event.preventDefault();
+        requestClose("escape");
+        return;
+      }
+      handleFocusTrap(event);
+    }
+    function handlePointerDown(event) {
+      if (!isOpen || options.closeOnBackdrop === false) {
+        return;
+      }
+      if (event.target === overlay) {
+        event.preventDefault();
+        requestClose("backdrop");
+      }
+    }
+    container.addEventListener("keydown", handleKeydown);
+    overlay.addEventListener("pointerdown", handlePointerDown);
+    const controller = {
+      open: openModal,
+      close(options2) {
+        closeModal(options2);
+      },
+      toggle(force) {
+        const shouldOpen = typeof force === "boolean" ? force : !isOpen;
+        if (shouldOpen) {
+          openModal();
+        } else {
+          closeModal();
+        }
+      },
+      isOpen: () => isOpen,
+      requestClose,
+      refreshFocusTrap: refreshFocusCycle,
+      setSize(size) {
+        if (!size) return;
+        container.dataset.modalSize = size;
+      },
+      setTone(tone) {
+        if (!tone) return;
+        container.dataset.modalTone = tone;
+      },
+      setCloseHandler(handler) {
+        requestCloseHandler = typeof handler === "function" ? handler : null;
+      },
+      updateConfig(next = {}) {
+        if (typeof next.labelledBy === "string") {
+          container.setAttribute("aria-labelledby", next.labelledBy);
+        }
+        if (typeof next.describedBy === "string") {
+          container.setAttribute("aria-describedby", next.describedBy);
+        }
+        if (typeof next.trapFocus === "boolean") {
+          options.trapFocus = next.trapFocus;
+        }
+        if (typeof next.closeOnBackdrop === "boolean") {
+          options.closeOnBackdrop = next.closeOnBackdrop;
+        }
+        if (typeof next.closeOnEscape === "boolean") {
+          options.closeOnEscape = next.closeOnEscape;
+        }
+        if (typeof next.onOpen === "function") {
+          options.onOpen = next.onOpen;
+        }
+        if (typeof next.onClose === "function") {
+          options.onClose = next.onClose;
+        }
+      },
+      destroy() {
+        overlay.removeEventListener("pointerdown", handlePointerDown);
+        container.removeEventListener("keydown", handleKeydown);
+        closeModal({ restoreFocus: false });
+        container.innerHTML = "";
+        container.classList.remove("modal-host");
+        container.removeAttribute("role");
+        container.removeAttribute("aria-hidden");
+        container.removeAttribute("aria-modal");
+        container.removeAttribute("aria-labelledby");
+        container.removeAttribute("aria-describedby");
+        delete container.dataset.modalSize;
+        delete container.dataset.modalTone;
+        delete container.dataset.open;
+      },
+      get surface() {
+        return surface;
+      },
+      get overlay() {
+        return overlay;
+      },
+      get container() {
+        return container;
+      }
+    };
+    return controller;
   }
 
   // scripts/ui/statsPanel.js
@@ -930,10 +1032,14 @@ var GameApp = (() => {
   var containerRef = null;
   var gridRef = null;
   var closeButtonRef = null;
-  var floatingController = null;
+  var modalController = null;
   var onRequestCloseRef = null;
   function handleCloseClick(event) {
     event?.preventDefault?.();
+    if (modalController) {
+      modalController.requestClose("action");
+      return;
+    }
     onRequestCloseRef?.();
   }
   function initializeStatsUI(container, stats2, options = {}) {
@@ -941,8 +1047,8 @@ var GameApp = (() => {
       containerRef = null;
       gridRef = null;
       closeButtonRef = null;
-      floatingController?.destroy?.();
-      floatingController = null;
+      modalController?.destroy?.();
+      modalController = null;
       onRequestCloseRef = null;
       statElements.clear();
       return;
@@ -951,39 +1057,40 @@ var GameApp = (() => {
     if (closeButtonRef) {
       closeButtonRef.removeEventListener("click", handleCloseClick);
     }
-    floatingController?.destroy?.();
-    floatingController = null;
+    modalController?.destroy?.();
+    modalController = null;
     containerRef = container;
-    containerRef.innerHTML = "";
     containerRef.classList.add("stats-panel");
-    containerRef.setAttribute("role", "dialog");
-    containerRef.setAttribute("aria-modal", "false");
-    containerRef.setAttribute("aria-labelledby", TITLE_ID);
-    containerRef.setAttribute("aria-hidden", "true");
-    containerRef.tabIndex = -1;
-    containerRef.hidden = true;
-    containerRef.dataset.open = "false";
-    containerRef.innerHTML = `
-    <div class="stats-modal" role="document">
-      <header class="stats-modal__header">
-        <div class="stats-modal__titles">
-          <p class="stats-modal__subtitle">Profil Kepribadian</p>
-          <h2 class="stats-modal__title" id="${TITLE_ID}">Stat Karakter</h2>
-        </div>
-        <button type="button" class="stats-modal__close" aria-label="Tutup stat">
-          <span aria-hidden="true">\u2715</span>
-        </button>
-      </header>
-      <div class="stats-modal__body">
-        <div class="stats-grid" role="list"></div>
+    modalController = createModalHost(containerRef, {
+      labelledBy: TITLE_ID,
+      size: "wide",
+      tone: "midnight",
+      onRequestClose: () => {
+        if (onRequestCloseRef) {
+          onRequestCloseRef();
+          return false;
+        }
+        return true;
+      }
+    });
+    const surface = modalController.surface;
+    surface.classList.add("stats-modal");
+    surface.innerHTML = `
+    <header class="stats-modal__header">
+      <div class="stats-modal__titles">
+        <p class="stats-modal__subtitle">Profil Kepribadian</p>
+        <h2 class="stats-modal__title" id="${TITLE_ID}">Stat Karakter</h2>
       </div>
+      <button type="button" class="stats-modal__close" aria-label="Tutup stat">
+        <span aria-hidden="true">\u2715</span>
+      </button>
+    </header>
+    <div class="stats-modal__body">
+      <div class="stats-grid" role="list"></div>
     </div>
   `;
-    const modalRef2 = containerRef.querySelector(".stats-modal");
-    const dragHandle = containerRef.querySelector(".stats-modal__header");
-    gridRef = containerRef.querySelector(".stats-grid");
-    closeButtonRef = containerRef.querySelector(".stats-modal__close");
-    floatingController = createFloatingWindow({ container: containerRef, modal: modalRef2, handle: dragHandle });
+    gridRef = surface.querySelector(".stats-grid");
+    closeButtonRef = surface.querySelector(".stats-modal__close");
     closeButtonRef?.addEventListener("click", handleCloseClick);
     statElements.clear();
     gridRef.innerHTML = "";
@@ -1039,34 +1146,19 @@ var GameApp = (() => {
       gridRef.appendChild(card);
       statElements.set(key, { card, bar, progress, value, tier });
     });
-    floatingController?.center?.();
+    modalController.refreshFocusTrap();
   }
   function onStatsVisibilityChange(visible) {
-    if (!containerRef) {
+    if (!containerRef || !modalController) {
       return;
     }
     if (visible) {
-      registerModalOpen();
-      containerRef.hidden = false;
-      containerRef.removeAttribute("hidden");
-      containerRef.setAttribute("aria-modal", "true");
-      containerRef.setAttribute("aria-hidden", "false");
-      containerRef.dataset.open = "true";
-      if (floatingController && !floatingController.hasCustomPosition()) {
-        floatingController.center();
-      }
+      modalController.open();
       window.requestAnimationFrame(() => {
         closeButtonRef?.focus?.();
       });
     } else {
-      registerModalClose();
-      containerRef.hidden = true;
-      if (!containerRef.hasAttribute("hidden")) {
-        containerRef.setAttribute("hidden", "");
-      }
-      containerRef.setAttribute("aria-modal", "false");
-      containerRef.setAttribute("aria-hidden", "true");
-      containerRef.dataset.open = "false";
+      modalController.close({ restoreFocus: false });
     }
   }
   function updateStatsUI(stats2) {
@@ -1339,28 +1431,37 @@ var GameApp = (() => {
   var buttonRef = null;
   var contentRef = null;
   var closeButtonRef2 = null;
-  var floatingController2 = null;
-  var modalRef = null;
-  var dragHandleRef = null;
+  var modalController2 = null;
   var providerRef = () => [];
-  var isOpen = false;
-  var previousFocus = null;
   var openLabel = "Lihat Jurnal";
   var closeLabel = "Tutup Jurnal";
   var TITLE_ID2 = "journalDialogTitle";
   var BODY_ID = "journalDialogBody";
   function handleJournalButtonClick(event) {
     event?.preventDefault?.();
-    toggleJournal();
-  }
-  function handlePanelBackgroundClick(event) {
-    if (event.target === panelRef) {
-      closeJournal();
-    }
+    modalController2?.toggle();
   }
   function handleCloseButtonClick(event) {
     event?.preventDefault?.();
-    closeJournal();
+    modalController2?.requestClose("action");
+  }
+  function handleModalOpen() {
+    if (!buttonRef) {
+      return;
+    }
+    buttonRef.setAttribute("aria-expanded", "true");
+    buttonRef.setAttribute("aria-pressed", "true");
+    buttonRef.textContent = closeLabel;
+    renderEntries();
+    modalController2?.refreshFocusTrap();
+  }
+  function handleModalClose() {
+    if (!buttonRef) {
+      return;
+    }
+    buttonRef.setAttribute("aria-expanded", "false");
+    buttonRef.setAttribute("aria-pressed", "false");
+    buttonRef.textContent = openLabel;
   }
   function initializeJournal(button, panel, provider) {
     if (!button || !panel) {
@@ -1369,100 +1470,46 @@ var GameApp = (() => {
     if (buttonRef) {
       buttonRef.removeEventListener("click", handleJournalButtonClick);
     }
-    if (panelRef) {
-      panelRef.removeEventListener("click", handlePanelBackgroundClick);
-      panelRef.removeEventListener("keydown", handleKeydown);
-    }
     if (closeButtonRef2) {
       closeButtonRef2.removeEventListener("click", handleCloseButtonClick);
     }
-    floatingController2?.destroy?.();
-    floatingController2 = null;
+    modalController2?.destroy?.();
+    modalController2 = null;
     buttonRef = button;
     panelRef = panel;
-    providerRef = provider;
+    providerRef = typeof provider === "function" ? provider : () => [];
     openLabel = buttonRef.textContent?.trim() || openLabel;
     buttonRef.setAttribute("aria-haspopup", "dialog");
     buttonRef.setAttribute("aria-controls", panelRef.id);
     panelRef.classList.add("journal-panel");
-    panelRef.setAttribute("role", "dialog");
-    panelRef.setAttribute("aria-modal", "false");
-    panelRef.setAttribute("aria-labelledby", TITLE_ID2);
-    panelRef.setAttribute("aria-describedby", BODY_ID);
-    panelRef.tabIndex = -1;
-    panelRef.hidden = true;
-    isOpen = false;
-    panelRef.innerHTML = `
-    <div class="journal-modal" role="document">
-      <header class="journal-modal__header">
-        <div class="journal-modal__titles">
-          <p class="journal-modal__subtitle">Catatan Strategi</p>
-          <h2 class="journal-modal__title" id="${TITLE_ID2}">Jurnal Visi Ke Depan</h2>
-        </div>
-        <button type="button" class="journal-modal__close" aria-label="Tutup jurnal">
-          <span aria-hidden="true">\u2715</span>
-        </button>
-      </header>
-      <div class="journal-modal__body" id="${BODY_ID}"></div>
-    </div>
-  `;
-    modalRef = panelRef.querySelector(".journal-modal");
-    dragHandleRef = panelRef.querySelector(".journal-modal__header");
-    contentRef = panelRef.querySelector(".journal-modal__body");
-    closeButtonRef2 = panelRef.querySelector(".journal-modal__close");
-    floatingController2 = createFloatingWindow({
-      container: panelRef,
-      modal: modalRef,
-      handle: dragHandleRef
+    modalController2 = createModalHost(panelRef, {
+      labelledBy: TITLE_ID2,
+      describedBy: BODY_ID,
+      size: "wide",
+      tone: "ember",
+      onOpen: handleModalOpen,
+      onClose: handleModalClose
     });
+    const surface = modalController2.surface;
+    surface.classList.add("journal-modal");
+    surface.innerHTML = `
+    <header class="journal-modal__header">
+      <div class="journal-modal__titles">
+        <p class="journal-modal__subtitle">Catatan Strategi</p>
+        <h2 class="journal-modal__title" id="${TITLE_ID2}">Jurnal Visi Ke Depan</h2>
+      </div>
+      <button type="button" class="journal-modal__close" aria-label="Tutup jurnal">
+        <span aria-hidden="true">\u2715</span>
+      </button>
+    </header>
+    <div class="journal-modal__body" id="${BODY_ID}"></div>
+  `;
+    contentRef = surface.querySelector(".journal-modal__body");
+    closeButtonRef2 = surface.querySelector(".journal-modal__close");
     closeButtonRef2?.addEventListener("click", handleCloseButtonClick);
-    panelRef.addEventListener("click", handlePanelBackgroundClick);
-    panelRef.addEventListener("keydown", handleKeydown);
-    updateVisibility();
     buttonRef.addEventListener("click", handleJournalButtonClick);
-  }
-  function handleKeydown(event) {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      closeJournal();
-    }
-  }
-  function updateVisibility() {
-    if (!panelRef || !buttonRef) return;
-    panelRef.hidden = !isOpen;
-    if (isOpen) {
-      panelRef.removeAttribute("hidden");
-    } else if (!panelRef.hasAttribute("hidden")) {
-      panelRef.setAttribute("hidden", "");
-    }
-    panelRef.setAttribute("aria-modal", isOpen ? "true" : "false");
-    panelRef.setAttribute("aria-hidden", isOpen ? "false" : "true");
-    panelRef.dataset.open = isOpen ? "true" : "false";
-    const expanded = isOpen ? "true" : "false";
-    buttonRef.setAttribute("aria-expanded", expanded);
-    buttonRef.setAttribute("aria-pressed", expanded);
-    buttonRef.textContent = isOpen ? closeLabel : openLabel;
-    if (isOpen) {
-      registerModalOpen();
-      previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      if (floatingController2 && !floatingController2.hasCustomPosition()) {
-        floatingController2.center();
-      }
-      renderEntries();
-      window.requestAnimationFrame(() => {
-        if (closeButtonRef2) {
-          closeButtonRef2.focus();
-        } else {
-          panelRef.focus();
-        }
-      });
-    } else {
-      registerModalClose();
-      if (previousFocus && typeof previousFocus.focus === "function") {
-        previousFocus.focus();
-      }
-      previousFocus = null;
-    }
+    buttonRef.setAttribute("aria-expanded", "false");
+    buttonRef.setAttribute("aria-pressed", "false");
   }
   function renderEntries() {
     if (!contentRef) return;
@@ -1523,24 +1570,13 @@ var GameApp = (() => {
     contentRef.appendChild(list);
   }
   function refreshJournal() {
-    if (isOpen) {
+    if (modalController2?.isOpen()) {
       renderEntries();
+      modalController2.refreshFocusTrap();
     }
   }
   function closeJournal() {
-    if (!isOpen) return;
-    toggleJournal(false);
-  }
-  function toggleJournal(forceState) {
-    const nextState = typeof forceState === "boolean" ? forceState : !isOpen;
-    if (nextState === isOpen) {
-      if (isOpen) {
-        renderEntries();
-      }
-      return;
-    }
-    isOpen = nextState;
-    updateVisibility();
+    modalController2?.close();
   }
 
   // scripts/util/time.js
