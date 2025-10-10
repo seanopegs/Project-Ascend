@@ -19,7 +19,7 @@ function handleJournalButtonClick(event) {
 
 function handleCloseButtonClick(event) {
   event?.preventDefault?.();
-  modalController?.requestClose("action");
+  modalController?.close({ restoreFocus: true });
 }
 
 function handleModalOpen() {
