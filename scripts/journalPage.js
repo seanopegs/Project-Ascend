@@ -29,10 +29,31 @@ function setupBackButton(button) {
   });
 }
 
+function getFallbackJournalEntries() {
+  return [
+    {
+      title: "Ketukan Penagih",
+      time: "Malam ini pukul 23.00",
+      description:
+        "Penagih akan kembali memastikan tagihanmu. Siapkan strategi bicara atau dana dadakan agar tekanan tidak meningkat.",
+    },
+  ];
+}
+
 function renderSnapshot(container, timestampElement) {
   const snapshot = loadJournalSnapshot();
-  const entries = snapshot?.entries ?? [];
+  const storedEntries = snapshot?.entries ?? [];
+  const usingFallback = !storedEntries.length;
+  const entries = usingFallback ? getFallbackJournalEntries() : storedEntries;
   renderJournalEntries(container, entries);
+
+  if (usingFallback && container) {
+    const notice = document.createElement("p");
+    notice.className = "journal-page__notice";
+    notice.textContent =
+      "Belum ada catatan dari sesi permainan. Menampilkan rencana awal untuk membantumu memulai.";
+    container.prepend(notice);
+  }
 
   if (!timestampElement) {
     return;
@@ -40,6 +61,8 @@ function renderSnapshot(container, timestampElement) {
   const formatted = formatTimestamp(snapshot?.generatedAt);
   if (formatted) {
     timestampElement.textContent = `Diperbarui terakhir: ${formatted}`;
+  } else if (usingFallback) {
+    timestampElement.textContent = "Diperbarui terakhir: menggunakan catatan pembuka";
   } else {
     timestampElement.textContent = "Diperbarui terakhir: tidak diketahui";
   }
