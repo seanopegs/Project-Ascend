@@ -17,15 +17,30 @@ let fullViewLinkRef = null;
 let journalVisible = false;
 let lastSnapshot = null;
 
-function getSessionStorage() {
+function getStorage(type) {
   try {
-    if (typeof window !== "undefined" && window.sessionStorage) {
-      return window.sessionStorage;
+    if (typeof window !== "undefined" && window[type]) {
+      return window[type];
     }
   } catch (error) {
-    console.warn("Penyimpanan sesi tidak tersedia untuk jurnal.", error);
+    console.warn(`Penyimpanan ${type} tidak tersedia untuk jurnal.`, error);
   }
   return null;
+}
+
+function getSessionStorage() {
+  return getStorage("sessionStorage");
+}
+
+function getLocalStorage() {
+  return getStorage("localStorage");
+}
+
+function getAvailableStorages() {
+  return [
+    { storage: getSessionStorage(), type: "session" },
+    { storage: getLocalStorage(), type: "local" },
+  ].filter(({ storage }) => Boolean(storage));
 }
 
 function sanitizeEntries(entries) {
@@ -72,15 +87,18 @@ function storeSnapshot(entries) {
     entries: sanitizedEntries,
     generatedAt: new Date().toISOString(),
   };
-  const storage = getSessionStorage();
-  if (!storage) {
+  const storages = getAvailableStorages();
+  if (!storages.length) {
+    console.warn("Penyimpanan web tidak tersedia untuk jurnal. Versi layar penuh mungkin tidak sinkron.");
     return payload;
   }
-  try {
-    storage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  } catch (error) {
-    console.warn("Gagal menyimpan data jurnal ke penyimpanan sementara.", error);
-  }
+  storages.forEach(({ storage, type }) => {
+    try {
+      storage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    } catch (error) {
+      console.warn(`Gagal menyimpan data jurnal ke penyimpanan ${type}.`, error);
+    }
+  });
   return payload;
 }
 
@@ -284,38 +302,48 @@ export function closeJournal() {
 }
 
 export function loadJournalSnapshot() {
-  const storage = getSessionStorage();
-  if (!storage) {
-    return null;
-  }
-  try {
-    const raw = storage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return null;
+  const storages = getAvailableStorages();
+  const sessionStorageRef = storages.find(({ type }) => type === "session")?.storage ?? null;
+
+  for (const { storage, type } of storages) {
+    try {
+      const raw = storage.getItem(STORAGE_KEY);
+      if (!raw) {
+        continue;
+      }
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") {
+        continue;
+      }
+      const entries = sanitizeEntries(parsed.entries);
+      const generatedAt = typeof parsed.generatedAt === "string" ? parsed.generatedAt : undefined;
+
+      if (sessionStorageRef && storage !== sessionStorageRef) {
+        try {
+          sessionStorageRef.setItem(STORAGE_KEY, raw);
+        } catch (syncError) {
+          console.warn("Gagal menyelaraskan data jurnal ke penyimpanan sesi.", syncError);
+        }
+      }
+
+      return { entries, generatedAt };
+    } catch (error) {
+      console.warn(`Gagal membaca data jurnal dari penyimpanan ${type}.`, error);
     }
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") {
-      return null;
-    }
-    const entries = sanitizeEntries(parsed.entries);
-    const generatedAt = typeof parsed.generatedAt === "string" ? parsed.generatedAt : undefined;
-    return { entries, generatedAt };
-  } catch (error) {
-    console.warn("Gagal membaca data jurnal dari penyimpanan sementara.", error);
-    return null;
   }
+
+  return null;
 }
 
 export function clearJournalSnapshot() {
-  const storage = getSessionStorage();
-  if (!storage) {
-    return;
-  }
-  try {
-    storage.removeItem(STORAGE_KEY);
-  } catch (error) {
-    console.warn("Gagal menghapus data jurnal dari penyimpanan sementara.", error);
-  }
+  const storages = getAvailableStorages();
+  storages.forEach(({ storage, type }) => {
+    try {
+      storage.removeItem(STORAGE_KEY);
+    } catch (error) {
+      console.warn(`Gagal menghapus data jurnal dari penyimpanan ${type}.`, error);
+    }
+  });
 }
 
 export function renderJournalEntries(container, entries) {

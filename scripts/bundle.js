@@ -733,6 +733,7 @@ var GameApp = (() => {
     "[contenteditable]",
     '[tabindex]:not([tabindex="-1"])'
   ].join(",");
+  var DRAG_EXCLUDE_SELECTOR = 'button, a[href], input, select, textarea, label, [role="button"], [role="link"], [role="tab"], [data-modal-drag-ignore]';
   var lockedModalCount = 0;
   var resizeListenerAttached = false;
   function clamp(value, min, max) {
@@ -990,6 +991,9 @@ var GameApp = (() => {
         if (!handle || !surface.contains(handle)) {
           return;
         }
+      }
+      if (target.closest(DRAG_EXCLUDE_SELECTOR)) {
+        return;
       }
       const rect = surface.getBoundingClientRect();
       const offsets = getCurrentOffsets();
@@ -1653,15 +1657,27 @@ var GameApp = (() => {
   var fullViewLinkRef = null;
   var journalVisible = false;
   var lastSnapshot = null;
-  function getSessionStorage() {
+  function getStorage(type) {
     try {
-      if (typeof window !== "undefined" && window.sessionStorage) {
-        return window.sessionStorage;
+      if (typeof window !== "undefined" && window[type]) {
+        return window[type];
       }
     } catch (error) {
-      console.warn("Penyimpanan sesi tidak tersedia untuk jurnal.", error);
+      console.warn(`Penyimpanan ${type} tidak tersedia untuk jurnal.`, error);
     }
     return null;
+  }
+  function getSessionStorage() {
+    return getStorage("sessionStorage");
+  }
+  function getLocalStorage() {
+    return getStorage("localStorage");
+  }
+  function getAvailableStorages() {
+    return [
+      { storage: getSessionStorage(), type: "session" },
+      { storage: getLocalStorage(), type: "local" }
+    ].filter(({ storage }) => Boolean(storage));
   }
   function sanitizeEntries(entries) {
     if (!Array.isArray(entries)) {
@@ -1702,15 +1718,18 @@ var GameApp = (() => {
       entries: sanitizedEntries,
       generatedAt: (/* @__PURE__ */ new Date()).toISOString()
     };
-    const storage = getSessionStorage();
-    if (!storage) {
+    const storages = getAvailableStorages();
+    if (!storages.length) {
+      console.warn("Penyimpanan web tidak tersedia untuk jurnal. Versi layar penuh mungkin tidak sinkron.");
       return payload;
     }
-    try {
-      storage.setItem(STORAGE_KEY, JSON.stringify(payload));
-    } catch (error) {
-      console.warn("Gagal menyimpan data jurnal ke penyimpanan sementara.", error);
-    }
+    storages.forEach(({ storage, type }) => {
+      try {
+        storage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      } catch (error) {
+        console.warn(`Gagal menyimpan data jurnal ke penyimpanan ${type}.`, error);
+      }
+    });
     return payload;
   }
   function getJournalTargetUrl() {
@@ -1761,7 +1780,7 @@ var GameApp = (() => {
     storeSnapshot(providerRef());
   }
   function setJournalVisibility(visible) {
-    journalVisible = Boolean(visible);
+    journalVisible = Boolean(visible && modalController2);
     updateButtonState();
     if (!modalController2) {
       return;
@@ -1795,6 +1814,8 @@ var GameApp = (() => {
     modalController2?.destroy?.();
     modalController2 = null;
     panelRef = null;
+    journalVisible = false;
+    updateButtonState();
   }
   function setupModal(panel) {
     if (!panel) {
@@ -1887,15 +1908,14 @@ var GameApp = (() => {
     setJournalVisibility(false);
   }
   function clearJournalSnapshot() {
-    const storage = getSessionStorage();
-    if (!storage) {
-      return;
-    }
-    try {
-      storage.removeItem(STORAGE_KEY);
-    } catch (error) {
-      console.warn("Gagal menghapus data jurnal dari penyimpanan sementara.", error);
-    }
+    const storages = getAvailableStorages();
+    storages.forEach(({ storage, type }) => {
+      try {
+        storage.removeItem(STORAGE_KEY);
+      } catch (error) {
+        console.warn(`Gagal menghapus data jurnal dari penyimpanan ${type}.`, error);
+      }
+    });
   }
   function renderJournalEntries(container, entries) {
     if (!container) {

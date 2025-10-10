@@ -4,6 +4,9 @@ const FOCUSABLE_SELECTORS = [
   '[contenteditable]','[tabindex]:not([tabindex="-1"])'
 ].join(',');
 
+const DRAG_EXCLUDE_SELECTOR =
+  'button, a[href], input, select, textarea, label, [role="button"], [role="link"], [role="tab"], [data-modal-drag-ignore]';
+
 let lockedModalCount = 0;
 let resizeListenerAttached = false;
 
@@ -305,6 +308,10 @@ export function createModalHost(container, config = {}) {
       if (!handle || !surface.contains(handle)) {
         return;
       }
+    }
+
+    if (target.closest(DRAG_EXCLUDE_SELECTOR)) {
+      return;
     }
 
     const rect = surface.getBoundingClientRect();
