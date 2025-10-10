@@ -38,6 +38,77 @@ let miniMapContainer;
 let themeToggleButton;
 let statsPanelVisible = false;
 
+const ACTION_HOTKEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+const TRAVEL_HOTKEYS = Array.from('abcdefghijklmnopqrstuvwxyz');
+const choiceHotkeys = new Map();
+let hotkeyListenerAttached = false;
+
+function normalizeHotkey(value) {
+  return typeof value === 'string' ? value.toLowerCase() : '';
+}
+
+function isTextEntryElement(element) {
+  if (!(element instanceof HTMLElement)) {
+    return false;
+  }
+  const tagName = element.tagName;
+  return (
+    element.isContentEditable ||
+    tagName === 'INPUT' ||
+    tagName === 'TEXTAREA' ||
+    tagName === 'SELECT'
+  );
+}
+
+function handleChoiceHotkey(event) {
+  if (event.defaultPrevented) {
+    return;
+  }
+  if (event.metaKey || event.ctrlKey || event.altKey) {
+    return;
+  }
+  const key = normalizeHotkey(event.key);
+  if (!key) {
+    return;
+  }
+  if (isTextEntryElement(event.target)) {
+    return;
+  }
+  const entry = choiceHotkeys.get(key);
+  if (!entry) {
+    return;
+  }
+  const { button, handler } = entry;
+  if (button?.disabled) {
+    return;
+  }
+  event.preventDefault();
+  if (typeof button?.focus === 'function') {
+    button.focus({ preventScroll: true });
+  }
+  handler?.();
+}
+
+function ensureChoiceHotkeyListener() {
+  if (hotkeyListenerAttached) {
+    return;
+  }
+  window.addEventListener('keydown', handleChoiceHotkey, { passive: false });
+  hotkeyListenerAttached = true;
+}
+
+function clearChoiceHotkeys() {
+  choiceHotkeys.clear();
+}
+
+function registerChoiceHotkey(key, button, handler) {
+  const normalized = normalizeHotkey(key);
+  if (!normalized || !button || typeof handler !== 'function') {
+    return;
+  }
+  choiceHotkeys.set(normalized, { button, handler });
+}
+
 function detachUiHandlers() {
   if (toggleStatsButton) {
     toggleStatsButton.removeEventListener("click", handleToggleStatsClick);
@@ -123,6 +194,7 @@ export function initializeGame() {
     restartButton.addEventListener("click", handleRestartClick);
   }
 
+  ensureChoiceHotkeyListener();
   resetGame();
 }
 
@@ -603,12 +675,54 @@ function handleEvents() {
   return { narratives, changes: changeRecords };
 }
 
+function attachHotkeyToChoice(entry, key) {
+  if (!entry || !key) {
+    return;
+  }
+  const { button, header, ariaLabel, onActivate } = entry;
+  if (!button || !header || typeof onActivate !== 'function') {
+    return;
+  }
+  const badge = document.createElement('span');
+  badge.className = 'choice-key';
+  badge.textContent = key.toUpperCase();
+  badge.setAttribute('aria-hidden', 'true');
+  header.prepend(badge);
+
+  const baseLabel = (ariaLabel || button.getAttribute('aria-label') || button.textContent || '').trim();
+  const sentence = baseLabel.endsWith('.') ? baseLabel : baseLabel ? `${baseLabel}.` : '';
+  const hotkeyLabel = key.toUpperCase();
+  const ariaText = `${sentence ? `${sentence} ` : ''}Pintasan keyboard ${hotkeyLabel}.`.trim();
+  if (ariaText) {
+    button.setAttribute('aria-label', ariaText);
+  }
+  button.dataset.hotkey = hotkeyLabel;
+  registerChoiceHotkey(key, button, onActivate);
+}
+
+function applyHotkeysToEntries(entries, sequence) {
+  if (!Array.isArray(entries) || !Array.isArray(sequence)) {
+    return;
+  }
+  entries.forEach((entry, index) => {
+    const key = sequence[index];
+    if (!key) {
+      return;
+    }
+    attachHotkeyToChoice(entry, key);
+  });
+}
+
 function renderChoicesForLocation(location) {
   if (!choicesElement) {
     return;
   }
 
   choicesElement.innerHTML = "";
+  clearChoiceHotkeys();
+
+  const actionEntries = [];
+  const travelEntries = [];
 
   const actionRefs = location.actions || [];
   actionRefs.forEach((actionRef) => {
@@ -623,9 +737,13 @@ function renderChoicesForLocation(location) {
     button.className = "button";
     button.type = "button";
 
+    const header = document.createElement("div");
+    header.className = "choice-header";
     const label = document.createElement("span");
+    label.className = "choice-label";
     label.textContent = action.label;
-    button.appendChild(label);
+    header.appendChild(label);
+    button.appendChild(header);
 
     const outcomePreview = resolveActionOutcome(action, worldState);
     const preview = describeCombinedEffects(outcomePreview.baseEffects, outcomePreview.statusChanges);
@@ -692,8 +810,12 @@ function renderChoicesForLocation(location) {
       button.appendChild(note);
     }
 
-    button.addEventListener("click", () => performAction(actionRef.id));
+    const onActivate = () => performAction(actionRef.id);
+    button.addEventListener("click", onActivate);
+    const ariaLabel = ariaParts.join(" ").trim();
+    button.setAttribute("aria-label", ariaLabel);
     choicesElement.appendChild(button);
+    actionEntries.push({ button, header, ariaLabel, onActivate });
   });
 
   const connections = location.connections || [];
@@ -703,13 +825,23 @@ function renderChoicesForLocation(location) {
     const button = document.createElement("button");
     button.className = "button secondary";
     button.type = "button";
+    const header = document.createElement("div");
+    header.className = "choice-header";
     const label = document.createElement("span");
+    label.className = "choice-label";
     label.textContent = `Pergi ke ${targetLocation.name}`;
-    button.appendChild(label);
-    button.setAttribute("aria-label", `Pergi ke ${targetLocation.name}`);
-    button.addEventListener("click", () => moveTo(target));
+    header.appendChild(label);
+    button.appendChild(header);
+    const ariaLabel = `Pergi ke ${targetLocation.name}.`;
+    button.setAttribute("aria-label", ariaLabel);
+    const onActivate = () => moveTo(target);
+    button.addEventListener("click", onActivate);
     choicesElement.appendChild(button);
+    travelEntries.push({ button, header, ariaLabel, onActivate });
   });
+
+  applyHotkeysToEntries(actionEntries, ACTION_HOTKEYS);
+  applyHotkeysToEntries(travelEntries, TRAVEL_HOTKEYS);
 
   if (!choicesElement.children.length) {
     const note = document.createElement("p");
@@ -862,6 +994,7 @@ function renderScene(narratives = [], changeRecords = []) {
 
   if (gameEnded) {
     if (choicesElement) {
+      clearChoiceHotkeys();
       choicesElement.innerHTML = "";
       const endingLabel = document.createElement("p");
       endingLabel.className = "subtitle";

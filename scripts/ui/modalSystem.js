@@ -14,6 +14,16 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+function parsePositiveNumber(value) {
+  const numeric = Number.parseFloat(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+}
+
+function parseDimension(value) {
+  const numeric = Number.parseFloat(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
 function syncDocumentState() {
   const html = document.documentElement;
   const body = document.body;
@@ -106,6 +116,11 @@ export function createModalHost(container, config = {}) {
     lockScroll: config.lockScroll !== false,
     draggable: config.draggable === true,
     dragHandle: typeof config.dragHandle === 'string' ? config.dragHandle : null,
+    resizable: config.resizable === true,
+    minWidth: parsePositiveNumber(config.minWidth) ?? 420,
+    minHeight: parsePositiveNumber(config.minHeight) ?? 320,
+    maxWidth: parsePositiveNumber(config.maxWidth) ?? null,
+    maxHeight: parsePositiveNumber(config.maxHeight) ?? null,
     onOpen: typeof config.onOpen === 'function' ? config.onOpen : null,
     onClose: typeof config.onClose === 'function' ? config.onClose : null,
   };
@@ -153,6 +168,10 @@ export function createModalHost(container, config = {}) {
   let focusableElements = [];
   let previouslyFocusedElement = null;
   let dragState = null;
+  let resizeHandle = null;
+  let resizeState = null;
+  let hasManualWidth = false;
+  let hasManualHeight = false;
 
   function updateContainerState() {
     container.dataset.open = isOpen ? 'true' : 'false';
@@ -251,6 +270,100 @@ export function createModalHost(container, config = {}) {
     applyOffset(constrained.x, constrained.y);
   }
 
+  function getSizeConstraints() {
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+    const marginX = Math.min(48, Math.max(16, Math.floor(viewportWidth * 0.05)));
+    const marginY = Math.min(48, Math.max(16, Math.floor(viewportHeight * 0.08)));
+    const availableWidth = Math.max(280, viewportWidth - marginX * 2);
+    const availableHeight = Math.max(240, viewportHeight - marginY * 2);
+
+    let maxWidth = options.maxWidth ? Math.min(options.maxWidth, availableWidth) : availableWidth;
+    let maxHeight = options.maxHeight ? Math.min(options.maxHeight, availableHeight) : availableHeight;
+    let minWidth = Math.min(options.minWidth, availableWidth);
+    let minHeight = Math.min(options.minHeight, availableHeight);
+
+    if (!Number.isFinite(maxWidth) || maxWidth <= 0) {
+      maxWidth = availableWidth;
+    }
+    if (!Number.isFinite(maxHeight) || maxHeight <= 0) {
+      maxHeight = availableHeight;
+    }
+    if (minWidth > maxWidth) {
+      minWidth = maxWidth;
+    }
+    if (minHeight > maxHeight) {
+      minHeight = maxHeight;
+    }
+
+    return {
+      minWidth: Math.max(240, minWidth),
+      minHeight: Math.max(200, minHeight),
+      maxWidth: Math.max(240, maxWidth),
+      maxHeight: Math.max(200, maxHeight),
+    };
+  }
+
+  function getCurrentSize() {
+    const rect = surface.getBoundingClientRect();
+    const inlineWidth = parseDimension(surface.style.width);
+    const inlineHeight = parseDimension(surface.style.height);
+    const width = inlineWidth ?? rect.width;
+    const height = inlineHeight ?? rect.height;
+    return { width, height, inlineWidth, inlineHeight, rect };
+  }
+
+  function applySize(width, height, { manual = false } = {}) {
+    if (Number.isFinite(width)) {
+      const rounded = Math.max(0, Math.round(width));
+      surface.style.width = `${rounded}px`;
+      if (manual) {
+        hasManualWidth = true;
+      }
+    }
+    if (Number.isFinite(height)) {
+      const rounded = Math.max(0, Math.round(height));
+      surface.style.height = `${rounded}px`;
+      if (manual) {
+        hasManualHeight = true;
+      }
+    }
+  }
+
+  function clearSurfaceSize() {
+    surface.style.removeProperty('width');
+    surface.style.removeProperty('height');
+    hasManualWidth = false;
+    hasManualHeight = false;
+  }
+
+  function clampSizeToViewport() {
+    if (!options.resizable) {
+      return;
+    }
+    const { width, height, inlineWidth, inlineHeight } = getCurrentSize();
+    const constraints = getSizeConstraints();
+    const enforceMinWidth = hasManualWidth || inlineWidth !== null;
+    const enforceMinHeight = hasManualHeight || inlineHeight !== null;
+
+    const minWidth = enforceMinWidth ? constraints.minWidth : Math.min(width, constraints.maxWidth);
+    const minHeight = enforceMinHeight ? constraints.minHeight : Math.min(height, constraints.maxHeight);
+
+    const clampedWidth = clamp(width, minWidth, constraints.maxWidth);
+    const clampedHeight = clamp(height, minHeight, constraints.maxHeight);
+
+    const widthNeedsUpdate = enforceMinWidth || inlineWidth !== null || clampedWidth !== width;
+    const heightNeedsUpdate = enforceMinHeight || inlineHeight !== null || clampedHeight !== height;
+
+    if (widthNeedsUpdate) {
+      applySize(clampedWidth, null);
+    }
+    if (heightNeedsUpdate) {
+      applySize(null, clampedHeight);
+    }
+    commitConstrainedOffsets({ width: clampedWidth, height: clampedHeight });
+  }
+
   function stopDragging() {
     if (!dragState) {
       return;
@@ -342,17 +455,130 @@ export function createModalHost(container, config = {}) {
 
   surface.addEventListener('pointerdown', handleSurfacePointerDown);
 
+  function stopResizing({ commit = true } = {}) {
+    if (!resizeState) {
+      return;
+    }
+    window.removeEventListener('pointermove', handleResizePointerMove);
+    window.removeEventListener('pointerup', handleResizePointerUp);
+    window.removeEventListener('pointercancel', handleResizePointerUp);
+    resizeHandle?.releasePointerCapture?.(resizeState.pointerId);
+    surface.classList.remove('is-resizing');
+    if (commit) {
+      clampSizeToViewport();
+    }
+    resizeState = null;
+  }
+
+  function handleResizePointerMove(event) {
+    if (!resizeState || event.pointerId !== resizeState.pointerId) {
+      return;
+    }
+    const deltaX = event.clientX - resizeState.startX;
+    const deltaY = event.clientY - resizeState.startY;
+    const constraints = getSizeConstraints();
+    const desiredWidth = resizeState.baseWidth + deltaX;
+    const desiredHeight = resizeState.baseHeight + deltaY;
+    const width = clamp(desiredWidth, constraints.minWidth, constraints.maxWidth);
+    const height = clamp(desiredHeight, constraints.minHeight, constraints.maxHeight);
+    applySize(width, height, { manual: true });
+    commitConstrainedOffsets({ width, height });
+  }
+
+  function handleResizePointerUp(event) {
+    if (!resizeState || event.pointerId !== resizeState.pointerId) {
+      return;
+    }
+    stopResizing();
+  }
+
+  function handleResizePointerDown(event) {
+    if (event.button !== 0 || !options.resizable) {
+      return;
+    }
+    if (!(event.currentTarget instanceof HTMLElement)) {
+      return;
+    }
+
+    const rect = surface.getBoundingClientRect();
+    resizeState = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      baseWidth: rect.width,
+      baseHeight: rect.height,
+    };
+
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    surface.classList.add('is-resizing');
+    window.addEventListener('pointermove', handleResizePointerMove);
+    window.addEventListener('pointerup', handleResizePointerUp);
+    window.addEventListener('pointercancel', handleResizePointerUp);
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
+  function ensureResizeHandle() {
+    if (!options.resizable) {
+      return;
+    }
+    if (resizeHandle && surface.contains(resizeHandle)) {
+      return;
+    }
+    if (resizeHandle) {
+      resizeHandle.removeEventListener('pointerdown', handleResizePointerDown);
+      resizeHandle = null;
+    }
+    const handle = document.createElement('div');
+    handle.className = 'modal-resize-handle';
+    handle.setAttribute('aria-hidden', 'true');
+    handle.tabIndex = -1;
+    surface.appendChild(handle);
+    handle.addEventListener('pointerdown', handleResizePointerDown);
+    resizeHandle = handle;
+  }
+
+  function destroyResizeHandle() {
+    if (!resizeHandle) {
+      return;
+    }
+    resizeHandle.removeEventListener('pointerdown', handleResizePointerDown);
+    if (resizeHandle.parentNode === surface) {
+      resizeHandle.parentNode.removeChild(resizeHandle);
+    }
+    resizeHandle = null;
+  }
+
+  function syncResizableState() {
+    if (options.resizable) {
+      surface.dataset.resizable = 'true';
+      ensureResizeHandle();
+      if (isOpen) {
+        clampSizeToViewport();
+      }
+    } else {
+      stopResizing({ commit: false });
+      destroyResizeHandle();
+      delete surface.dataset.resizable;
+      clearSurfaceSize();
+    }
+  }
+
   function handleViewportResize() {
     if (!isOpen) {
       return;
     }
-    if (options.draggable) {
+    if (options.resizable) {
+      clampSizeToViewport();
+    } else if (options.draggable) {
       commitConstrainedOffsets();
     }
   }
 
   window.addEventListener('resize', handleViewportResize, { passive: true });
   window.addEventListener('orientationchange', handleViewportResize, { passive: true });
+
+  syncResizableState();
 
   function openModal() {
     if (isOpen) {
@@ -362,12 +588,15 @@ export function createModalHost(container, config = {}) {
     previouslyFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     isOpen = true;
     updateContainerState();
+    syncResizableState();
     if (options.lockScroll) {
       lockedModalCount += 1;
       ensureResizeListener();
       syncDocumentState();
     }
-    if (options.draggable) {
+    if (options.resizable) {
+      clampSizeToViewport();
+    } else if (options.draggable) {
       commitConstrainedOffsets();
     }
     focusInitialElement();
@@ -380,6 +609,7 @@ export function createModalHost(container, config = {}) {
     }
     isOpen = false;
     updateContainerState();
+    stopResizing({ commit: false });
     stopDragging();
     resetPosition();
     if (options.lockScroll) {
@@ -483,6 +713,7 @@ export function createModalHost(container, config = {}) {
       requestCloseHandler = typeof handler === 'function' ? handler : null;
     },
     updateConfig(next = {}) {
+      let layoutChanged = false;
       if (typeof next.labelledBy === 'string') {
         container.setAttribute('aria-labelledby', next.labelledBy);
       }
@@ -502,7 +733,7 @@ export function createModalHost(container, config = {}) {
         options.lockScroll = next.lockScroll;
         container.dataset.modalMode = options.lockScroll ? 'modal' : 'floating';
         container.dataset.modalOverlay = options.lockScroll ? 'scrim' : 'none';
-        if (isOpen && options.draggable) {
+        if (isOpen && options.draggable && !options.resizable) {
           commitConstrainedOffsets();
         }
       }
@@ -524,11 +755,51 @@ export function createModalHost(container, config = {}) {
       if (typeof next.dragHandle === 'string' || next.dragHandle === null) {
         options.dragHandle = typeof next.dragHandle === 'string' ? next.dragHandle : null;
       }
+      if (typeof next.resizable === 'boolean') {
+        options.resizable = next.resizable;
+        layoutChanged = true;
+      }
+      const minWidth = parsePositiveNumber(next.minWidth);
+      if (minWidth !== null) {
+        options.minWidth = minWidth;
+        layoutChanged = true;
+      }
+      const minHeight = parsePositiveNumber(next.minHeight);
+      if (minHeight !== null) {
+        options.minHeight = minHeight;
+        layoutChanged = true;
+      }
+      if (next.maxWidth === null) {
+        options.maxWidth = null;
+        layoutChanged = true;
+      } else {
+        const maxWidth = parsePositiveNumber(next.maxWidth);
+        if (maxWidth !== null) {
+          options.maxWidth = maxWidth;
+          layoutChanged = true;
+        }
+      }
+      if (next.maxHeight === null) {
+        options.maxHeight = null;
+        layoutChanged = true;
+      } else {
+        const maxHeight = parsePositiveNumber(next.maxHeight);
+        if (maxHeight !== null) {
+          options.maxHeight = maxHeight;
+          layoutChanged = true;
+        }
+      }
       if (typeof next.onOpen === 'function') {
         options.onOpen = next.onOpen;
       }
       if (typeof next.onClose === 'function') {
         options.onClose = next.onClose;
+      }
+      if (layoutChanged) {
+        syncResizableState();
+        if (!options.resizable && options.draggable && isOpen) {
+          commitConstrainedOffsets();
+        }
       }
     },
     destroy() {
@@ -537,6 +808,10 @@ export function createModalHost(container, config = {}) {
       surface.removeEventListener('pointerdown', handleSurfacePointerDown);
       window.removeEventListener('resize', handleViewportResize);
       window.removeEventListener('orientationchange', handleViewportResize);
+      stopResizing({ commit: false });
+      destroyResizeHandle();
+      delete surface.dataset.resizable;
+      clearSurfaceSize();
       closeModal({ restoreFocus: false });
       container.innerHTML = '';
       container.classList.remove('modal-host');

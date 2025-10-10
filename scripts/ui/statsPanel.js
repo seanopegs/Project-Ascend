@@ -50,6 +50,9 @@ export function initializeStatsUI(container, stats, options = {}) {
     lockScroll: false,
     draggable: true,
     dragHandle: ".stats-modal__header",
+    resizable: true,
+    minWidth: 520,
+    minHeight: 420,
     onRequestClose: () => {
       if (onRequestCloseRef) {
         onRequestCloseRef();

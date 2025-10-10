@@ -219,6 +219,9 @@ function setupModal(panel) {
     lockScroll: false,
     draggable: true,
     dragHandle: ".journal-modal__header",
+    resizable: true,
+    minWidth: 560,
+    minHeight: 420,
     onRequestClose: () => {
       setJournalVisibility(false);
       return true;
