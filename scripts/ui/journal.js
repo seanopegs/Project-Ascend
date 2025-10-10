@@ -1,8 +1,21 @@
+import { createModalHost } from "./modalSystem.js";
+
 const STORAGE_KEY = "jalanKeluar:journalSnapshot";
+const TITLE_ID = "journalDialogTitle";
+const TIMESTAMP_ID = "journalDialogTimestamp";
 
 let buttonRef = null;
+let panelRef = null;
+let modalController = null;
 let providerRef = () => [];
 let openLabel = "Lihat Jurnal";
+let closeLabel = "Sembunyikan Jurnal";
+let contentRef = null;
+let timestampRef = null;
+let closeButtonRef = null;
+let fullViewLinkRef = null;
+let journalVisible = false;
+let lastSnapshot = null;
 
 function getSessionStorage() {
   try {
@@ -75,53 +88,199 @@ function getJournalTargetUrl() {
   return buttonRef?.getAttribute("data-journal-url") || "journal.html";
 }
 
-function handleJournalButtonClick(event) {
-  event?.preventDefault?.();
-  storeSnapshot(providerRef());
-  const targetUrl = getJournalTargetUrl();
-  window.location.assign(targetUrl);
+function formatTimestamp(value) {
+  if (!value) {
+    return null;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "full",
+    timeStyle: "short",
+  }).format(date);
 }
 
-export function initializeJournal(button, panel, provider) {
-  if (!button) {
+function updateTimestampDisplay(value) {
+  if (!timestampRef) {
+    return;
+  }
+  const formatted = formatTimestamp(value);
+  if (formatted) {
+    timestampRef.textContent = `Diperbarui terakhir: ${formatted}`;
+  } else {
+    timestampRef.textContent = "Diperbarui terakhir: belum tersedia";
+  }
+}
+
+function updateButtonState() {
+  if (!buttonRef) {
+    return;
+  }
+  const expanded = journalVisible ? "true" : "false";
+  buttonRef.setAttribute("aria-expanded", expanded);
+  buttonRef.setAttribute("aria-pressed", expanded);
+  buttonRef.textContent = journalVisible ? closeLabel : openLabel;
+}
+
+function handleToggleButtonClick(event) {
+  event?.preventDefault?.();
+  setJournalVisibility(!journalVisible);
+}
+
+function handleCloseClick(event) {
+  event?.preventDefault?.();
+  setJournalVisibility(false);
+}
+
+function handleFullViewClick() {
+  storeSnapshot(providerRef());
+}
+
+function setJournalVisibility(visible) {
+  journalVisible = Boolean(visible && modalController);
+  updateButtonState();
+  if (!modalController) {
     return;
   }
 
+  if (journalVisible) {
+    if (contentRef) {
+      renderJournalEntries(contentRef, lastSnapshot?.entries ?? []);
+    }
+    updateTimestampDisplay(lastSnapshot?.generatedAt);
+    modalController.open();
+    window.requestAnimationFrame(() => {
+      closeButtonRef?.focus?.();
+    });
+  } else {
+    modalController.close({ restoreFocus: false });
+    if (buttonRef) {
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && panelRef?.contains(active)) {
+        buttonRef.focus({ preventScroll: true });
+      }
+    }
+  }
+}
+
+function destroyModal() {
+  closeButtonRef?.removeEventListener("click", handleCloseClick);
+  closeButtonRef = null;
+  fullViewLinkRef?.removeEventListener("click", handleFullViewClick);
+  fullViewLinkRef = null;
+  contentRef = null;
+  timestampRef = null;
+  modalController?.destroy?.();
+  modalController = null;
+  panelRef = null;
+  journalVisible = false;
+  updateButtonState();
+}
+
+function setupModal(panel) {
+  if (!panel) {
+    destroyModal();
+    return;
+  }
+
+  if (modalController) {
+    destroyModal();
+  }
+
+  panelRef = panel;
+  panelRef.classList.add("journal-panel");
+
+  modalController = createModalHost(panelRef, {
+    labelledBy: TITLE_ID,
+    size: "wide",
+    tone: "midnight",
+    trapFocus: false,
+    closeOnBackdrop: false,
+    lockScroll: false,
+    draggable: true,
+    dragHandle: ".journal-modal__header",
+    onRequestClose: () => {
+      setJournalVisibility(false);
+      return true;
+    },
+  });
+
+  const surface = modalController.surface;
+  surface.classList.add("journal-modal");
+  surface.innerHTML = `
+    <header class="journal-modal__header">
+      <div class="journal-modal__titles">
+        <p class="journal-modal__subtitle">Catatan Strategi</p>
+        <h2 class="journal-modal__title" id="${TITLE_ID}">Jurnal Malam Ini</h2>
+        <p class="journal-modal__timestamp" id="${TIMESTAMP_ID}" aria-live="polite"></p>
+      </div>
+      <button type="button" class="journal-modal__close" aria-label="Tutup jurnal">
+        <span aria-hidden="true">✕</span>
+      </button>
+    </header>
+    <div class="journal-modal__body">
+      <div class="journal-modal__content"></div>
+      <footer class="journal-modal__footer">
+        <a class="journal-modal__link" href="${getJournalTargetUrl()}" target="_blank" rel="noopener">
+          Buka versi layar penuh
+        </a>
+      </footer>
+    </div>
+  `;
+
+  contentRef = surface.querySelector(".journal-modal__content");
+  timestampRef = surface.querySelector(`#${TIMESTAMP_ID}`);
+  closeButtonRef = surface.querySelector(".journal-modal__close");
+  fullViewLinkRef = surface.querySelector(".journal-modal__link");
+
+  closeButtonRef?.addEventListener("click", handleCloseClick);
+  fullViewLinkRef?.addEventListener("click", handleFullViewClick);
+
+  modalController.refreshFocusTrap?.();
+}
+
+export function initializeJournal(button, panel, provider) {
   if (buttonRef) {
-    buttonRef.removeEventListener("click", handleJournalButtonClick);
+    buttonRef.removeEventListener("click", handleToggleButtonClick);
   }
 
-  buttonRef = button;
+  buttonRef = button || null;
   providerRef = typeof provider === "function" ? provider : () => [];
-  openLabel = buttonRef.textContent?.trim() || openLabel;
+  openLabel = "Lihat Jurnal";
+  closeLabel = "Sembunyikan Jurnal";
 
-  buttonRef.setAttribute("aria-expanded", "false");
-  buttonRef.setAttribute("aria-pressed", "false");
-  buttonRef.removeAttribute("aria-haspopup");
-  buttonRef.removeAttribute("aria-controls");
-  buttonRef.textContent = openLabel;
-  buttonRef.addEventListener("click", handleJournalButtonClick);
-
-  if (panel) {
-    panel.innerHTML = "";
-    panel.hidden = true;
+  if (buttonRef) {
+    openLabel = buttonRef.textContent?.trim() || openLabel;
+    const customClose = buttonRef.getAttribute("data-close-label");
+    if (typeof customClose === "string" && customClose.trim()) {
+      closeLabel = customClose.trim();
+    }
+    buttonRef.setAttribute("aria-haspopup", "dialog");
+    if (panel?.id) {
+      buttonRef.setAttribute("aria-controls", panel.id);
+    }
+    buttonRef.addEventListener("click", handleToggleButtonClick);
   }
 
+  setupModal(panel || null);
+  journalVisible = false;
+  updateButtonState();
   refreshJournal();
 }
 
 export function refreshJournal() {
-  storeSnapshot(providerRef());
+  lastSnapshot = storeSnapshot(providerRef());
+  if (contentRef && lastSnapshot) {
+    renderJournalEntries(contentRef, lastSnapshot.entries);
+  }
+  updateTimestampDisplay(lastSnapshot?.generatedAt);
 }
 
 export function closeJournal() {
   clearJournalSnapshot();
-  if (!buttonRef) {
-    return;
-  }
-  buttonRef.setAttribute("aria-expanded", "false");
-  buttonRef.setAttribute("aria-pressed", "false");
-  buttonRef.textContent = openLabel;
+  setJournalVisibility(false);
 }
 
 export function loadJournalSnapshot() {

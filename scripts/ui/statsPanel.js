@@ -53,7 +53,6 @@ export function initializeStatsUI(container, stats, options = {}) {
     onRequestClose: () => {
       if (onRequestCloseRef) {
         onRequestCloseRef();
-        return false;
       }
       return true;
     },
