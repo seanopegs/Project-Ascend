@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jurnal Visi Ke Depan - Jalan Keluar</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="journal-page" aria-labelledby="journalTitle">
+      <header class="journal-page__header">
+        <button id="journalBack" class="button tertiary journal-page__back" type="button">
+          ← Kembali
+        </button>
+        <div class="journal-page__titles">
+          <p class="journal-page__subtitle">Catatan Strategi</p>
+          <h1 id="journalTitle" class="journal-page__title">Jurnal Visi Ke Depan</h1>
+          <p id="journalTimestamp" class="journal-page__timestamp" aria-live="polite"></p>
+        </div>
+        <button
+          id="themeToggle"
+          class="theme-toggle journal-page__theme"
+          type="button"
+          aria-pressed="false"
+          aria-label="Aktifkan mode terang"
+        >
+          <span class="theme-toggle__icon" aria-hidden="true">🌙</span>
+          <span class="theme-toggle__label">Mode Gelap</span>
+        </button>
+      </header>
+      <main class="journal-page__content" id="journalContent"></main>
+    </div>
+    <script type="module" src="./scripts/journalPage.js"></script>
+  </body>
+</html>

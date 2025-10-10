@@ -733,7 +733,7 @@ var GameApp = (() => {
     "[contenteditable]",
     '[tabindex]:not([tabindex="-1"])'
   ].join(",");
-  var activeModalCount = 0;
+  var lockedModalCount = 0;
   var resizeListenerAttached = false;
   function clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);
@@ -744,7 +744,7 @@ var GameApp = (() => {
     if (!html || !body) {
       return;
     }
-    const hasOpenModal = activeModalCount > 0;
+    const hasOpenModal = lockedModalCount > 0;
     html.classList.toggle("modal-open", hasOpenModal);
     body.classList.toggle("modal-open", hasOpenModal);
     if (hasOpenModal) {
@@ -769,7 +769,7 @@ var GameApp = (() => {
     }
   }
   function handleWindowResize() {
-    if (activeModalCount > 0) {
+    if (lockedModalCount > 0) {
       syncDocumentState();
     }
   }
@@ -802,6 +802,13 @@ var GameApp = (() => {
     if (!container) {
       throw new Error("Modal host requires a valid container element");
     }
+    const originalParent = container.parentElement;
+    let hostPlaceholder = null;
+    if (originalParent && container.parentNode !== document.body) {
+      hostPlaceholder = document.createComment("modal-host-anchor");
+      originalParent.replaceChild(hostPlaceholder, container);
+      document.body.appendChild(container);
+    }
     const options = {
       labelledBy: config.labelledBy || null,
       describedBy: config.describedBy || null,
@@ -811,6 +818,9 @@ var GameApp = (() => {
       trapFocus: config.trapFocus !== false,
       closeOnBackdrop: config.closeOnBackdrop !== false,
       closeOnEscape: config.closeOnEscape !== false,
+      lockScroll: config.lockScroll !== false,
+      draggable: config.draggable === true,
+      dragHandle: typeof config.dragHandle === "string" ? config.dragHandle : null,
       onOpen: typeof config.onOpen === "function" ? config.onOpen : null,
       onClose: typeof config.onClose === "function" ? config.onClose : null
     };
@@ -819,6 +829,11 @@ var GameApp = (() => {
     container.classList.add("modal-host");
     container.dataset.modalSize = options.size;
     container.dataset.modalTone = options.tone;
+    container.dataset.modalMode = options.lockScroll ? "modal" : "floating";
+    container.dataset.modalOverlay = options.lockScroll ? "scrim" : "none";
+    if (options.draggable) {
+      container.dataset.modalDraggable = "true";
+    }
     container.setAttribute("role", options.role);
     if (options.labelledBy) {
       container.setAttribute("aria-labelledby", options.labelledBy);
@@ -845,6 +860,7 @@ var GameApp = (() => {
     let isOpen = false;
     let focusableElements = [];
     let previouslyFocusedElement = null;
+    let dragState = null;
     function updateContainerState() {
       container.dataset.open = isOpen ? "true" : "false";
       container.setAttribute("aria-hidden", isOpen ? "false" : "true");
@@ -856,6 +872,10 @@ var GameApp = (() => {
       }
     }
     function refreshFocusCycle() {
+      if (options.trapFocus === false) {
+        focusableElements = [];
+        return;
+      }
       focusableElements = getFocusableElements(surface);
     }
     function focusInitialElement() {
@@ -865,16 +885,160 @@ var GameApp = (() => {
         target.focus({ preventScroll: true });
       });
     }
+    function parseOffset(value) {
+      const numeric = Number.parseFloat(value);
+      return Number.isFinite(numeric) ? numeric : 0;
+    }
+    function getCurrentOffsets() {
+      return {
+        x: parseOffset(surface.style.getPropertyValue("--modal-offset-x")),
+        y: parseOffset(surface.style.getPropertyValue("--modal-offset-y"))
+      };
+    }
+    function applyOffset(offsetX, offsetY) {
+      surface.style.setProperty("--modal-offset-x", `${offsetX}px`);
+      surface.style.setProperty("--modal-offset-y", `${offsetY}px`);
+    }
+    function resetPosition() {
+      surface.style.removeProperty("--modal-offset-x");
+      surface.style.removeProperty("--modal-offset-y");
+      surface.classList.remove("is-dragging");
+    }
+    function constrainToViewport(width, height, offsetX, offsetY) {
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || width;
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || height;
+      const surfaceWidth = width ?? surface.getBoundingClientRect().width;
+      const surfaceHeight = height ?? surface.getBoundingClientRect().height;
+      const halfWidth = surfaceWidth / 2;
+      const halfHeight = surfaceHeight / 2;
+      const marginX = Math.min(48, Math.max(16, Math.floor(viewportWidth * 0.05)));
+      const marginY = Math.min(48, Math.max(16, Math.floor(viewportHeight * 0.08)));
+      const minCenterX = marginX + halfWidth;
+      const maxCenterX = viewportWidth - marginX - halfWidth;
+      const minCenterY = marginY + halfHeight;
+      const maxCenterY = viewportHeight - marginY - halfHeight;
+      const viewportCenterX = viewportWidth / 2;
+      const viewportCenterY = viewportHeight / 2;
+      let clampedOffsetX = offsetX;
+      let clampedOffsetY = offsetY;
+      if (minCenterX <= maxCenterX) {
+        const minOffsetX = minCenterX - viewportCenterX;
+        const maxOffsetX = maxCenterX - viewportCenterX;
+        clampedOffsetX = clamp(offsetX, minOffsetX, maxOffsetX);
+      } else {
+        clampedOffsetX = 0;
+      }
+      if (minCenterY <= maxCenterY) {
+        const minOffsetY = minCenterY - viewportCenterY;
+        const maxOffsetY = maxCenterY - viewportCenterY;
+        clampedOffsetY = clamp(offsetY, minOffsetY, maxOffsetY);
+      } else {
+        clampedOffsetY = 0;
+      }
+      return { x: clampedOffsetX, y: clampedOffsetY };
+    }
+    function commitConstrainedOffsets({ width, height } = {}) {
+      const { x, y } = getCurrentOffsets();
+      const constrained = constrainToViewport(width, height, x, y);
+      applyOffset(constrained.x, constrained.y);
+    }
+    function stopDragging() {
+      if (!dragState) {
+        return;
+      }
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+      surface.releasePointerCapture?.(dragState.pointerId);
+      surface.classList.remove("is-dragging");
+      dragState = null;
+    }
+    function handlePointerMove(event) {
+      if (!dragState || event.pointerId !== dragState.pointerId) {
+        return;
+      }
+      const deltaX = event.clientX - dragState.startX;
+      const deltaY = event.clientY - dragState.startY;
+      const desiredOffsetX = dragState.baseOffsetX + deltaX;
+      const desiredOffsetY = dragState.baseOffsetY + deltaY;
+      const constrained = constrainToViewport(
+        dragState.width,
+        dragState.height,
+        desiredOffsetX,
+        desiredOffsetY
+      );
+      applyOffset(constrained.x, constrained.y);
+    }
+    function handlePointerUp(event) {
+      if (!dragState || event.pointerId !== dragState.pointerId) {
+        return;
+      }
+      const { width, height } = dragState;
+      stopDragging();
+      commitConstrainedOffsets({ width, height });
+    }
+    function beginDrag(event) {
+      if (event.button !== 0 || !options.draggable) {
+        return;
+      }
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+      if (options.dragHandle) {
+        const handle = target.closest(options.dragHandle);
+        if (!handle || !surface.contains(handle)) {
+          return;
+        }
+      }
+      const rect = surface.getBoundingClientRect();
+      const offsets = getCurrentOffsets();
+      dragState = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        baseOffsetX: offsets.x,
+        baseOffsetY: offsets.y,
+        width: rect.width,
+        height: rect.height
+      };
+      surface.setPointerCapture?.(event.pointerId);
+      surface.classList.add("is-dragging");
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", handlePointerUp);
+      window.addEventListener("pointercancel", handlePointerUp);
+      event.preventDefault();
+    }
+    function handleSurfacePointerDown(event) {
+      beginDrag(event);
+    }
+    surface.addEventListener("pointerdown", handleSurfacePointerDown);
+    function handleViewportResize() {
+      if (!isOpen) {
+        return;
+      }
+      if (options.draggable) {
+        commitConstrainedOffsets();
+      }
+    }
+    window.addEventListener("resize", handleViewportResize, { passive: true });
+    window.addEventListener("orientationchange", handleViewportResize, { passive: true });
     function openModal() {
       if (isOpen) {
         return;
       }
+      resetPosition();
       previouslyFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       isOpen = true;
       updateContainerState();
-      activeModalCount += 1;
-      ensureResizeListener();
-      syncDocumentState();
+      if (options.lockScroll) {
+        lockedModalCount += 1;
+        ensureResizeListener();
+        syncDocumentState();
+      }
+      if (options.draggable) {
+        commitConstrainedOffsets();
+      }
       focusInitialElement();
       options.onOpen?.();
     }
@@ -884,8 +1048,12 @@ var GameApp = (() => {
       }
       isOpen = false;
       updateContainerState();
-      activeModalCount = Math.max(0, activeModalCount - 1);
-      syncDocumentState();
+      stopDragging();
+      resetPosition();
+      if (options.lockScroll) {
+        lockedModalCount = Math.max(0, lockedModalCount - 1);
+        syncDocumentState();
+      }
       options.onClose?.();
       const shouldRestoreFocus = restoreFocus && previouslyFocusedElement && typeof previouslyFocusedElement.focus === "function";
       if (shouldRestoreFocus) {
@@ -964,6 +1132,7 @@ var GameApp = (() => {
       isOpen: () => isOpen,
       requestClose,
       refreshFocusTrap: refreshFocusCycle,
+      resetPosition,
       setSize(size) {
         if (!size) return;
         container.dataset.modalSize = size;
@@ -991,6 +1160,32 @@ var GameApp = (() => {
         if (typeof next.closeOnEscape === "boolean") {
           options.closeOnEscape = next.closeOnEscape;
         }
+        if (typeof next.lockScroll === "boolean") {
+          options.lockScroll = next.lockScroll;
+          container.dataset.modalMode = options.lockScroll ? "modal" : "floating";
+          container.dataset.modalOverlay = options.lockScroll ? "scrim" : "none";
+          if (isOpen && options.draggable) {
+            commitConstrainedOffsets();
+          }
+        }
+        if (typeof next.draggable === "boolean") {
+          options.draggable = next.draggable;
+          if (options.draggable) {
+            container.dataset.modalDraggable = "true";
+            if (isOpen) {
+              commitConstrainedOffsets();
+            }
+          } else {
+            delete container.dataset.modalDraggable;
+            stopDragging();
+            if (isOpen) {
+              resetPosition();
+            }
+          }
+        }
+        if (typeof next.dragHandle === "string" || next.dragHandle === null) {
+          options.dragHandle = typeof next.dragHandle === "string" ? next.dragHandle : null;
+        }
         if (typeof next.onOpen === "function") {
           options.onOpen = next.onOpen;
         }
@@ -1001,6 +1196,9 @@ var GameApp = (() => {
       destroy() {
         overlay.removeEventListener("pointerdown", handlePointerDown);
         container.removeEventListener("keydown", handleKeydown);
+        surface.removeEventListener("pointerdown", handleSurfacePointerDown);
+        window.removeEventListener("resize", handleViewportResize);
+        window.removeEventListener("orientationchange", handleViewportResize);
         closeModal({ restoreFocus: false });
         container.innerHTML = "";
         container.classList.remove("modal-host");
@@ -1011,7 +1209,16 @@ var GameApp = (() => {
         container.removeAttribute("aria-describedby");
         delete container.dataset.modalSize;
         delete container.dataset.modalTone;
+        delete container.dataset.modalMode;
+        delete container.dataset.modalOverlay;
+        delete container.dataset.modalDraggable;
         delete container.dataset.open;
+        if (hostPlaceholder && hostPlaceholder.parentNode) {
+          hostPlaceholder.parentNode.replaceChild(container, hostPlaceholder);
+          hostPlaceholder = null;
+        } else if (originalParent && !originalParent.contains(container)) {
+          originalParent.appendChild(container);
+        }
       },
       get surface() {
         return surface;
@@ -1065,6 +1272,11 @@ var GameApp = (() => {
       labelledBy: TITLE_ID,
       size: "wide",
       tone: "midnight",
+      trapFocus: false,
+      closeOnBackdrop: false,
+      lockScroll: false,
+      draggable: true,
+      dragHandle: ".stats-modal__header",
       onRequestClose: () => {
         if (onRequestCloseRef) {
           onRequestCloseRef();
@@ -1427,35 +1639,106 @@ var GameApp = (() => {
   }
 
   // scripts/ui/journal.js
-  var panelRef = null;
+  var STORAGE_KEY = "jalanKeluar:journalSnapshot";
   var buttonRef = null;
-  var contentRef = null;
-  var closeButtonRef2 = null;
-  var modalController2 = null;
   var providerRef = () => [];
   var openLabel = "Lihat Jurnal";
-  var closeLabel = "Tutup Jurnal";
-  var TITLE_ID2 = "journalDialogTitle";
-  var BODY_ID = "journalDialogBody";
+  function getSessionStorage() {
+    try {
+      if (typeof window !== "undefined" && window.sessionStorage) {
+        return window.sessionStorage;
+      }
+    } catch (error) {
+      console.warn("Penyimpanan sesi tidak tersedia untuk jurnal.", error);
+    }
+    return null;
+  }
+  function sanitizeEntries(entries) {
+    if (!Array.isArray(entries)) {
+      return [];
+    }
+    return entries.map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+      const sanitized = {
+        title: typeof entry.title === "string" ? entry.title : void 0,
+        time: typeof entry.time === "string" ? entry.time : void 0,
+        description: typeof entry.description === "string" ? entry.description : void 0
+      };
+      if (Array.isArray(entry.items)) {
+        sanitized.items = entry.items.map((item) => {
+          if (!item || typeof item !== "object") {
+            return null;
+          }
+          const note = {
+            text: typeof item.text === "string" ? item.text : void 0
+          };
+          if (typeof item.time === "string") {
+            note.time = item.time;
+          }
+          return note;
+        }).filter(Boolean);
+        if (!sanitized.items.length) {
+          delete sanitized.items;
+        }
+      }
+      return sanitized;
+    }).filter(Boolean);
+  }
+  function storeSnapshot(entries) {
+    const sanitizedEntries = sanitizeEntries(entries);
+    const payload = {
+      entries: sanitizedEntries,
+      generatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    const storage = getSessionStorage();
+    if (!storage) {
+      return payload;
+    }
+    try {
+      storage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    } catch (error) {
+      console.warn("Gagal menyimpan data jurnal ke penyimpanan sementara.", error);
+    }
+    return payload;
+  }
+  function getJournalTargetUrl() {
+    return buttonRef?.getAttribute("data-journal-url") || "journal.html";
+  }
   function handleJournalButtonClick(event) {
     event?.preventDefault?.();
-    modalController2?.toggle();
+    storeSnapshot(providerRef());
+    const targetUrl = getJournalTargetUrl();
+    window.location.assign(targetUrl);
   }
-  function handleCloseButtonClick(event) {
-    event?.preventDefault?.();
-    modalController2?.requestClose("action");
-  }
-  function handleModalOpen() {
-    if (!buttonRef) {
+  function initializeJournal(button, panel, provider) {
+    if (!button) {
       return;
     }
-    buttonRef.setAttribute("aria-expanded", "true");
-    buttonRef.setAttribute("aria-pressed", "true");
-    buttonRef.textContent = closeLabel;
-    renderEntries();
-    modalController2?.refreshFocusTrap();
+    if (buttonRef) {
+      buttonRef.removeEventListener("click", handleJournalButtonClick);
+    }
+    buttonRef = button;
+    providerRef = typeof provider === "function" ? provider : () => [];
+    openLabel = buttonRef.textContent?.trim() || openLabel;
+    buttonRef.setAttribute("aria-expanded", "false");
+    buttonRef.setAttribute("aria-pressed", "false");
+    buttonRef.removeAttribute("aria-haspopup");
+    buttonRef.removeAttribute("aria-controls");
+    buttonRef.textContent = openLabel;
+    buttonRef.addEventListener("click", handleJournalButtonClick);
+    if (panel) {
+      panel.innerHTML = "";
+      panel.hidden = true;
+    }
+    refreshJournal();
   }
-  function handleModalClose() {
+  function refreshJournal() {
+    storeSnapshot(providerRef());
+  }
+  function closeJournal() {
+    clearJournalSnapshot();
     if (!buttonRef) {
       return;
     }
@@ -1463,120 +1746,16 @@ var GameApp = (() => {
     buttonRef.setAttribute("aria-pressed", "false");
     buttonRef.textContent = openLabel;
   }
-  function initializeJournal(button, panel, provider) {
-    if (!button || !panel) {
+  function clearJournalSnapshot() {
+    const storage = getSessionStorage();
+    if (!storage) {
       return;
     }
-    if (buttonRef) {
-      buttonRef.removeEventListener("click", handleJournalButtonClick);
+    try {
+      storage.removeItem(STORAGE_KEY);
+    } catch (error) {
+      console.warn("Gagal menghapus data jurnal dari penyimpanan sementara.", error);
     }
-    if (closeButtonRef2) {
-      closeButtonRef2.removeEventListener("click", handleCloseButtonClick);
-    }
-    modalController2?.destroy?.();
-    modalController2 = null;
-    buttonRef = button;
-    panelRef = panel;
-    providerRef = typeof provider === "function" ? provider : () => [];
-    openLabel = buttonRef.textContent?.trim() || openLabel;
-    buttonRef.setAttribute("aria-haspopup", "dialog");
-    buttonRef.setAttribute("aria-controls", panelRef.id);
-    panelRef.classList.add("journal-panel");
-    modalController2 = createModalHost(panelRef, {
-      labelledBy: TITLE_ID2,
-      describedBy: BODY_ID,
-      size: "wide",
-      tone: "ember",
-      onOpen: handleModalOpen,
-      onClose: handleModalClose
-    });
-    const surface = modalController2.surface;
-    surface.classList.add("journal-modal");
-    surface.innerHTML = `
-    <header class="journal-modal__header">
-      <div class="journal-modal__titles">
-        <p class="journal-modal__subtitle">Catatan Strategi</p>
-        <h2 class="journal-modal__title" id="${TITLE_ID2}">Jurnal Visi Ke Depan</h2>
-      </div>
-      <button type="button" class="journal-modal__close" aria-label="Tutup jurnal">
-        <span aria-hidden="true">\u2715</span>
-      </button>
-    </header>
-    <div class="journal-modal__body" id="${BODY_ID}"></div>
-  `;
-    contentRef = surface.querySelector(".journal-modal__body");
-    closeButtonRef2 = surface.querySelector(".journal-modal__close");
-    closeButtonRef2?.addEventListener("click", handleCloseButtonClick);
-    buttonRef.addEventListener("click", handleJournalButtonClick);
-    buttonRef.setAttribute("aria-expanded", "false");
-    buttonRef.setAttribute("aria-pressed", "false");
-  }
-  function renderEntries() {
-    if (!contentRef) return;
-    const entries = providerRef() || [];
-    contentRef.innerHTML = "";
-    if (!entries.length) {
-      const empty = document.createElement("p");
-      empty.className = "journal-empty";
-      empty.textContent = "Jurnal masih kosong. Catatan akan muncul ketika ada agenda yang perlu diwaspadai.";
-      contentRef.appendChild(empty);
-      return;
-    }
-    const intro = document.createElement("p");
-    intro.className = "journal-description";
-    intro.textContent = "Catatan waktu dan ancaman penting yang perlu kamu ingat selama malam ini.";
-    contentRef.appendChild(intro);
-    const list = document.createElement("ol");
-    list.className = "journal-list";
-    entries.forEach((entry) => {
-      const item = document.createElement("li");
-      if (entry.title) {
-        const title = document.createElement("h3");
-        title.textContent = entry.title;
-        item.appendChild(title);
-      }
-      if (entry.time) {
-        const time = document.createElement("p");
-        time.className = "journal-time";
-        time.textContent = entry.time;
-        item.appendChild(time);
-      }
-      if (entry.description) {
-        const description = document.createElement("p");
-        description.textContent = entry.description;
-        item.appendChild(description);
-      }
-      if (Array.isArray(entry.items) && entry.items.length) {
-        const notes = document.createElement("ul");
-        notes.className = "journal-sublist";
-        entry.items.forEach((note) => {
-          const row = document.createElement("li");
-          const noteText = document.createElement("span");
-          noteText.className = "journal-subtext";
-          noteText.textContent = note.text;
-          row.appendChild(noteText);
-          if (note.time) {
-            const noteTime = document.createElement("span");
-            noteTime.className = "journal-subtime";
-            noteTime.textContent = note.time;
-            row.appendChild(noteTime);
-          }
-          notes.appendChild(row);
-        });
-        item.appendChild(notes);
-      }
-      list.appendChild(item);
-    });
-    contentRef.appendChild(list);
-  }
-  function refreshJournal() {
-    if (modalController2?.isOpen()) {
-      renderEntries();
-      modalController2.refreshFocusTrap();
-    }
-  }
-  function closeJournal() {
-    modalController2?.close();
   }
 
   // scripts/util/time.js
@@ -1640,7 +1819,7 @@ var GameApp = (() => {
   }
 
   // scripts/ui/themeToggle.js
-  var STORAGE_KEY = "jalanKeluar:theme";
+  var STORAGE_KEY2 = "jalanKeluar:theme";
   var THEMES = /* @__PURE__ */ new Set(["dark", "light"]);
   var buttonRef2 = null;
   var mediaQueryRef = null;
@@ -1648,7 +1827,7 @@ var GameApp = (() => {
   var hasStoredPreference = false;
   function getStoredTheme() {
     try {
-      const value = window.localStorage.getItem(STORAGE_KEY);
+      const value = window.localStorage.getItem(STORAGE_KEY2);
       if (value && THEMES.has(value)) {
         return value;
       }
@@ -1659,7 +1838,7 @@ var GameApp = (() => {
   }
   function persistTheme(theme) {
     try {
-      window.localStorage.setItem(STORAGE_KEY, theme);
+      window.localStorage.setItem(STORAGE_KEY2, theme);
     } catch (error) {
       console.warn("Gagal menyimpan preferensi tema.", error);
     }

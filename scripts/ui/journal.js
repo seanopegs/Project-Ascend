@@ -1,39 +1,121 @@
-import { createModalHost } from "./modalSystem.js";
+const STORAGE_KEY = "jalanKeluar:journalSnapshot";
 
-let panelRef = null;
 let buttonRef = null;
-let contentRef = null;
-let closeButtonRef = null;
-let modalController = null;
 let providerRef = () => [];
 let openLabel = "Lihat Jurnal";
-const closeLabel = "Tutup Jurnal";
 
-const TITLE_ID = "journalDialogTitle";
-const BODY_ID = "journalDialogBody";
+function getSessionStorage() {
+  try {
+    if (typeof window !== "undefined" && window.sessionStorage) {
+      return window.sessionStorage;
+    }
+  } catch (error) {
+    console.warn("Penyimpanan sesi tidak tersedia untuk jurnal.", error);
+  }
+  return null;
+}
+
+function sanitizeEntries(entries) {
+  if (!Array.isArray(entries)) {
+    return [];
+  }
+  return entries
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+      const sanitized = {
+        title: typeof entry.title === "string" ? entry.title : undefined,
+        time: typeof entry.time === "string" ? entry.time : undefined,
+        description: typeof entry.description === "string" ? entry.description : undefined,
+      };
+      if (Array.isArray(entry.items)) {
+        sanitized.items = entry.items
+          .map((item) => {
+            if (!item || typeof item !== "object") {
+              return null;
+            }
+            const note = {
+              text: typeof item.text === "string" ? item.text : undefined,
+            };
+            if (typeof item.time === "string") {
+              note.time = item.time;
+            }
+            return note;
+          })
+          .filter(Boolean);
+        if (!sanitized.items.length) {
+          delete sanitized.items;
+        }
+      }
+      return sanitized;
+    })
+    .filter(Boolean);
+}
+
+function storeSnapshot(entries) {
+  const sanitizedEntries = sanitizeEntries(entries);
+  const payload = {
+    entries: sanitizedEntries,
+    generatedAt: new Date().toISOString(),
+  };
+  const storage = getSessionStorage();
+  if (!storage) {
+    return payload;
+  }
+  try {
+    storage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  } catch (error) {
+    console.warn("Gagal menyimpan data jurnal ke penyimpanan sementara.", error);
+  }
+  return payload;
+}
+
+function getJournalTargetUrl() {
+  return buttonRef?.getAttribute("data-journal-url") || "journal.html";
+}
 
 function handleJournalButtonClick(event) {
   event?.preventDefault?.();
-  modalController?.toggle();
+  storeSnapshot(providerRef());
+  const targetUrl = getJournalTargetUrl();
+  window.location.assign(targetUrl);
 }
 
-function handleCloseButtonClick(event) {
-  event?.preventDefault?.();
-  modalController?.close({ restoreFocus: true });
-}
-
-function handleModalOpen() {
-  if (!buttonRef) {
+export function initializeJournal(button, panel, provider) {
+  if (!button) {
     return;
   }
-  buttonRef.setAttribute("aria-expanded", "true");
-  buttonRef.setAttribute("aria-pressed", "true");
-  buttonRef.textContent = closeLabel;
-  renderEntries();
-  modalController?.refreshFocusTrap();
+
+  if (buttonRef) {
+    buttonRef.removeEventListener("click", handleJournalButtonClick);
+  }
+
+  buttonRef = button;
+  providerRef = typeof provider === "function" ? provider : () => [];
+  openLabel = buttonRef.textContent?.trim() || openLabel;
+
+  buttonRef.setAttribute("aria-expanded", "false");
+  buttonRef.setAttribute("aria-pressed", "false");
+  buttonRef.removeAttribute("aria-haspopup");
+  buttonRef.removeAttribute("aria-controls");
+  buttonRef.textContent = openLabel;
+  buttonRef.addEventListener("click", handleJournalButtonClick);
+
+  if (panel) {
+    panel.innerHTML = "";
+    panel.hidden = true;
+  }
+
+  refreshJournal();
 }
 
-function handleModalClose() {
+export function refreshJournal() {
+  storeSnapshot(providerRef());
+}
+
+export function closeJournal() {
+  clearJournalSnapshot();
   if (!buttonRef) {
     return;
   }
@@ -42,90 +124,69 @@ function handleModalClose() {
   buttonRef.textContent = openLabel;
 }
 
-export function initializeJournal(button, panel, provider) {
-  if (!button || !panel) {
-    return;
+export function loadJournalSnapshot() {
+  const storage = getSessionStorage();
+  if (!storage) {
+    return null;
   }
-
-  if (buttonRef) {
-    buttonRef.removeEventListener("click", handleJournalButtonClick);
+  try {
+    const raw = storage.getItem(STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+    const entries = sanitizeEntries(parsed.entries);
+    const generatedAt = typeof parsed.generatedAt === "string" ? parsed.generatedAt : undefined;
+    return { entries, generatedAt };
+  } catch (error) {
+    console.warn("Gagal membaca data jurnal dari penyimpanan sementara.", error);
+    return null;
   }
-  if (closeButtonRef) {
-    closeButtonRef.removeEventListener("click", handleCloseButtonClick);
-  }
-  modalController?.destroy?.();
-  modalController = null;
-
-  buttonRef = button;
-  panelRef = panel;
-  providerRef = typeof provider === "function" ? provider : () => [];
-  openLabel = buttonRef.textContent?.trim() || openLabel;
-
-  buttonRef.setAttribute("aria-haspopup", "dialog");
-  buttonRef.setAttribute("aria-controls", panelRef.id);
-
-  panelRef.classList.add("journal-panel");
-
-  modalController = createModalHost(panelRef, {
-    labelledBy: TITLE_ID,
-    describedBy: BODY_ID,
-    size: "wide",
-    tone: "ember",
-    trapFocus: false,
-    closeOnBackdrop: false,
-    lockScroll: false,
-    draggable: true,
-    dragHandle: ".journal-modal__header",
-    onOpen: handleModalOpen,
-    onClose: handleModalClose,
-  });
-
-  const surface = modalController.surface;
-  surface.classList.add("journal-modal");
-  surface.innerHTML = `
-    <header class="journal-modal__header">
-      <div class="journal-modal__titles">
-        <p class="journal-modal__subtitle">Catatan Strategi</p>
-        <h2 class="journal-modal__title" id="${TITLE_ID}">Jurnal Visi Ke Depan</h2>
-      </div>
-      <button type="button" class="journal-modal__close" aria-label="Tutup jurnal">
-        <span aria-hidden="true">✕</span>
-      </button>
-    </header>
-    <div class="journal-modal__body" id="${BODY_ID}"></div>
-  `;
-
-  contentRef = surface.querySelector(".journal-modal__body");
-  closeButtonRef = surface.querySelector(".journal-modal__close");
-  closeButtonRef?.addEventListener("click", handleCloseButtonClick);
-  buttonRef.addEventListener("click", handleJournalButtonClick);
-
-  buttonRef.setAttribute("aria-expanded", "false");
-  buttonRef.setAttribute("aria-pressed", "false");
 }
 
-function renderEntries() {
-  if (!contentRef) return;
-  const entries = providerRef() || [];
-  contentRef.innerHTML = "";
+export function clearJournalSnapshot() {
+  const storage = getSessionStorage();
+  if (!storage) {
+    return;
+  }
+  try {
+    storage.removeItem(STORAGE_KEY);
+  } catch (error) {
+    console.warn("Gagal menghapus data jurnal dari penyimpanan sementara.", error);
+  }
+}
 
-  if (!entries.length) {
+export function renderJournalEntries(container, entries) {
+  if (!container) {
+    return;
+  }
+  const listContainer = container;
+  listContainer.innerHTML = "";
+
+  const sanitizedEntries = sanitizeEntries(entries);
+  if (!sanitizedEntries.length) {
     const empty = document.createElement("p");
     empty.className = "journal-empty";
-    empty.textContent = "Jurnal masih kosong. Catatan akan muncul ketika ada agenda yang perlu diwaspadai.";
-    contentRef.appendChild(empty);
+    empty.textContent =
+      "Jurnal masih kosong. Catatan akan muncul ketika ada agenda yang perlu diwaspadai.";
+    listContainer.appendChild(empty);
     return;
   }
 
   const intro = document.createElement("p");
   intro.className = "journal-description";
   intro.textContent = "Catatan waktu dan ancaman penting yang perlu kamu ingat selama malam ini.";
-  contentRef.appendChild(intro);
+  listContainer.appendChild(intro);
 
   const list = document.createElement("ol");
   list.className = "journal-list";
-  entries.forEach((entry) => {
+
+  sanitizedEntries.forEach((entry) => {
     const item = document.createElement("li");
+
     if (entry.title) {
       const title = document.createElement("h3");
       title.textContent = entry.title;
@@ -149,33 +210,33 @@ function renderEntries() {
       const notes = document.createElement("ul");
       notes.className = "journal-sublist";
       entry.items.forEach((note) => {
+        if (!note) {
+          return;
+        }
         const row = document.createElement("li");
-        const noteText = document.createElement("span");
-        noteText.className = "journal-subtext";
-        noteText.textContent = note.text;
-        row.appendChild(noteText);
+        if (note.text) {
+          const noteText = document.createElement("span");
+          noteText.className = "journal-subtext";
+          noteText.textContent = note.text;
+          row.appendChild(noteText);
+        }
         if (note.time) {
           const noteTime = document.createElement("span");
           noteTime.className = "journal-subtime";
           noteTime.textContent = note.time;
           row.appendChild(noteTime);
         }
-        notes.appendChild(row);
+        if (row.childElementCount > 0) {
+          notes.appendChild(row);
+        }
       });
-      item.appendChild(notes);
+      if (notes.childElementCount > 0) {
+        item.appendChild(notes);
+      }
     }
+
     list.appendChild(item);
   });
-  contentRef.appendChild(list);
-}
 
-export function refreshJournal() {
-  if (modalController?.isOpen()) {
-    renderEntries();
-    modalController.refreshFocusTrap();
-  }
-}
-
-export function closeJournal() {
-  modalController?.close();
+  listContainer.appendChild(list);
 }
