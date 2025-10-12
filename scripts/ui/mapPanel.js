@@ -11,26 +11,46 @@ const layout = [
 let containerRef = null;
 const cellElements = new Map();
 const connectionElements = new Map();
+const roomMetadata = new Map();
 const gridRows = Math.max(...layout.map((room) => room.row));
 const gridCols = Math.max(...layout.map((room) => room.col));
 const GRID_UNIT = 100;
+let travelHandler = null;
+let activeLocationId = null;
 
 function buildConnectionKey(a, b) {
   return [a, b].sort().join("::");
 }
 
-export function initializeMiniMap(container) {
+function handleCellClick(targetId) {
+  if (!travelHandler) {
+    return;
+  }
+  if (targetId === activeLocationId) {
+    return;
+  }
+  travelHandler(targetId);
+}
+
+export function initializeMiniMap(container, options = {}) {
   if (!container) {
     containerRef = null;
     cellElements.clear();
     connectionElements.clear();
+    roomMetadata.clear();
+    travelHandler = null;
+    activeLocationId = null;
     return;
   }
 
   containerRef = container;
   containerRef.innerHTML = "";
-  containerRef.setAttribute("role", "img");
-  containerRef.setAttribute("aria-label", "Denah rumah");
+  cellElements.clear();
+  containerRef.setAttribute("role", "group");
+  containerRef.setAttribute("aria-label", "Denah rumah dan jalur perpindahan");
+
+  travelHandler = typeof options.onRequestTravel === "function" ? options.onRequestTravel : null;
+  activeLocationId = null;
 
   const grid = document.createElement("div");
   grid.className = "mini-map-grid";
@@ -42,13 +62,18 @@ export function initializeMiniMap(container) {
   overlay.setAttribute("viewBox", `0 0 ${gridCols * GRID_UNIT} ${gridRows * GRID_UNIT}`);
   overlay.setAttribute("preserveAspectRatio", "xMidYMid meet");
   connectionElements.clear();
+  roomMetadata.clear();
 
   layout.forEach((room) => {
-    const cell = document.createElement("div");
+    const cell = document.createElement("button");
     cell.className = "mini-map-cell";
+    cell.type = "button";
     cell.dataset.location = room.id;
     cell.style.setProperty("--row", room.row);
     cell.style.setProperty("--col", room.col);
+    cell.setAttribute("aria-label", room.label);
+    cell.title = room.label;
+    cell.addEventListener("click", () => handleCellClick(room.id));
 
     const name = document.createElement("span");
     name.className = "mini-map-label";
@@ -57,6 +82,7 @@ export function initializeMiniMap(container) {
 
     grid.appendChild(cell);
     cellElements.set(room.id, cell);
+    roomMetadata.set(room.id, { label: room.label });
   });
 
   containerRef.appendChild(overlay);
@@ -97,14 +123,42 @@ export function updateMiniMap(activeLocation) {
   if (!cellElements.size) {
     return;
   }
+  activeLocationId = activeLocation;
+  const current = locations[activeLocation];
+  const reachable = new Set(current?.connections || []);
   cellElements.forEach((cell, id) => {
-    if (id === activeLocation) {
-      cell.classList.add("active");
+    const isActive = id === activeLocation;
+    const isAdjacent = reachable.has(id);
+    const canTravel = isAdjacent;
+    const metadata = roomMetadata.get(id);
+    const labelParts = [metadata?.label ?? id];
+
+    cell.classList.toggle("active", isActive);
+    cell.classList.toggle("adjacent", isAdjacent);
+
+    if (isActive) {
       cell.setAttribute("aria-current", "true");
+      labelParts.push("Lokasi saat ini.");
     } else {
-      cell.classList.remove("active");
       cell.removeAttribute("aria-current");
+      if (canTravel) {
+        labelParts.push("Klik untuk berpindah.");
+      } else {
+        labelParts.push("Belum bisa diakses langsung.");
+      }
     }
+
+    if (isActive || canTravel) {
+      cell.disabled = false;
+      cell.removeAttribute("aria-disabled");
+    } else {
+      cell.disabled = true;
+      cell.setAttribute("aria-disabled", "true");
+    }
+
+    const label = labelParts.join(" ").trim();
+    cell.setAttribute("aria-label", label);
+    cell.title = label;
   });
 
   connectionElements.forEach((line) => {

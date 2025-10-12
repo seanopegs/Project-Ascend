@@ -18,7 +18,7 @@ export const actionLibrary = {
     time: 0.5,
     traits: ["mental", "documentation"],
     condition: (state) => !state.flags.hasChronology,
-    baseEffects: { awareness: 2, exhibitionism: 1, sadism: 1 },
+    baseEffects: { awareness: 2, confidence: 1, assertiveness: 1 },
     statusChanges: { stress: -2 },
     narrative: () =>
       "Kamu menyiapkan ponsel untuk merekam dan menuliskan kronologi detail. Jika mereka memaksa masuk, kamu punya bukti.",
@@ -31,7 +31,7 @@ export const actionLibrary = {
     time: 0.25,
     traits: ["social"],
     condition: (state) => !state.flags.awaitingDina && !state.flags.dinaArrived,
-    baseEffects: { promiscuity: 3, willpower: 1, beauty: 1 },
+    baseEffects: { networking: 3, willpower: 1, beauty: 1 },
     statusChanges: { stress: -3 },
     narrative: () =>
       "Dina menjawab dengan suara kantuk. Ia siap meminjamkan lima juta dan berjanji mampir begitu fajar.",
@@ -45,7 +45,7 @@ export const actionLibrary = {
     time: 0.5,
     traits: ["social", "mental", "recovery"],
     condition: (state) => state.flags.dinaArrived,
-    baseEffects: { promiscuity: 1, purity: 1, willpower: 1 },
+    baseEffects: { networking: 1, purity: 1, willpower: 1 },
     statusChanges: { stress: -4, trauma: -2 },
     narrative: () =>
       "Kamu menelepon Dina, menjelaskan kondisi Ayah dan strategi pembayaranmu. Suaranya tenang dan menegaskan kamu tidak sendirian.",
@@ -109,7 +109,7 @@ export const actionLibrary = {
     label: "Periksa kondisi Ayah",
     time: 0.5,
     traits: ["care", "physical"],
-    baseEffects: { purity: 2, masochism: 2, willpower: 1, beauty: 1 },
+    baseEffects: { purity: 2, resilience: 2, willpower: 1, beauty: 1 },
     statusChanges: { fatherHealth: 8, stress: -4, fatigue: 2 },
     narrative: () =>
       "Ayah demam. Kamu mengganti kompres dan mengusap dahinya hingga napasnya kembali teratur.",
@@ -122,7 +122,7 @@ export const actionLibrary = {
     time: 0.75,
     traits: ["recovery"],
     condition: (state) => state.fatigue >= 25,
-    baseEffects: { masochism: -1, willpower: 1 },
+    baseEffects: { resilience: -1, willpower: 1 },
     statusChanges: { fatigue: -14, stress: -3 },
     narrative: () =>
       "Kamu menyandarkan kepala di tepi ranjang tanpa benar-benar tidur. Setidaknya ototmu beristirahat sebentar.",
@@ -141,7 +141,7 @@ export const actionLibrary = {
     time: 0.5,
     traits: ["care", "mental"],
     condition: (state) => !state.flags.preparedMedicine,
-    baseEffects: { purity: 1, masochism: 1 },
+    baseEffects: { purity: 1, resilience: 1 },
     statusChanges: { fatherHealth: 4, fatigue: 1 },
     narrative: () =>
       "Kamu menyusun obat penurun demam dan segelas air hangat, memastikan dosisnya aman.",
@@ -153,7 +153,7 @@ export const actionLibrary = {
     label: "Pantau penagih dari balik tirai",
     time: 0.25,
     traits: ["vigilance", "mental"],
-    baseEffects: { awareness: 3, exhibitionism: -1, masochism: 1 },
+    baseEffects: { awareness: 3, confidence: -1, resilience: 1 },
     statusChanges: { stress: 3 },
     narrative: () =>
       "Lewat tirai, kamu melihat dua orang lelaki bersandar di motor dengan map merah khas penagih.",
@@ -162,7 +162,7 @@ export const actionLibrary = {
     label: "Periksa dan kunci seluruh pintu",
     time: 0.5,
     traits: ["physical", "security"],
-    baseEffects: { awareness: 2, masochism: 1 },
+    baseEffects: { awareness: 2, resilience: 1 },
     statusChanges: { stress: -2 },
     narrative: () =>
       "Kamu memastikan semua pintu dan jendela terkunci rapat, menambah gembok cadangan di gerendel depan.",
@@ -175,7 +175,7 @@ export const actionLibrary = {
     label: "Hadapi penagih lewat pintu",
     time: 1,
     condition: (state) => state.flags.debtCollectorKnock && !state.flags.confrontedCollector,
-    baseEffects: { exhibitionism: 2, sadism: 3, willpower: -1 },
+    baseEffects: { confidence: 2, assertiveness: 3, willpower: -1 },
     statusChanges: { stress: 4, trauma: 4 },
     narrative: () =>
       "Kamu berbicara tegas dari balik pintu, menolak intimidasi dan menegaskan kondisi Ayah yang sakit.",
@@ -197,12 +197,27 @@ export const actionLibrary = {
       state.flags.planPrepared = true;
     },
   },
+  risetUsahaRumahan: {
+    label: "Riset peluang usaha tetangga",
+    time: 1.25,
+    traits: ["planning", "business", "mental"],
+    condition: (state) => !state.flags.homeBusinessPlan,
+    baseEffects: { ingenuity: 4, networking: 1, confidence: 1 },
+    statusChanges: { stress: 2, fatigue: 3 },
+    narrative: () =>
+      "Kamu mendata menu siap saji favorit tetangga, menghitung modal bahan, dan menyiapkan daftar pemasok kecil.",
+    after: (state) => {
+      state.flags.homeBusinessPlan = true;
+      state.flags.homeBusinessMomentum = 0;
+      return "Catatan rapi ada di meja—tinggal berani membuka pre-order pertama.";
+    },
+  },
   kirimRencana: {
     label: "Kirim rencana ke debt collector",
     time: 0.5,
     traits: ["planning", "social"],
     condition: (state) => state.flags.planPrepared && !state.flags.planSent,
-    baseEffects: { sadism: 1, willpower: 1 },
+    baseEffects: { assertiveness: 1, willpower: 1 },
     statusChanges: { stress: -2 },
     narrative: () =>
       "Kamu mengirimkan rencana pembayaran lengkap dengan jadwal dan bukti pemasukan stabil.",
@@ -210,6 +225,27 @@ export const actionLibrary = {
       state.flags.planSent = true;
       state.flags.safeWithSupport = true;
       return "Balasan cepat datang: mereka akan cek ke kantor dan kembali pagi nanti.";
+    },
+  },
+  kelolaPreOrder: {
+    label: "Kelola pre-order camilan daring",
+    time: 1.25,
+    traits: ["business", "work"],
+    condition: (state) => state.flags.homeBusinessPlan,
+    baseEffects: { ingenuity: 1, resilience: 1 },
+    statusChanges: (state) => {
+      const momentum = Math.min(state.flags.homeBusinessMomentum || 0, 4);
+      const baseIncome = 380_000;
+      const bonus = momentum * 45_000;
+      return { money: baseIncome + bonus, fatigue: 6, stress: 3 };
+    },
+    narrative: () =>
+      "Kamu menyiapkan paket camilan, memotret, lalu membalas pesan titipan pesanan dari grup tetangga.",
+    after: (state) => {
+      state.flags.homeBusinessLaunched = true;
+      const momentum = state.flags.homeBusinessMomentum || 0;
+      state.flags.homeBusinessMomentum = Math.min(momentum + 1, 6);
+      return "Pesanan terkumpul dan uang muka masuk ke dompet digital. Besok pagi kamu tinggal mengantar.";
     },
   },
   kerjaLembur: {
@@ -220,6 +256,42 @@ export const actionLibrary = {
     statusChanges: { money: 180_000, fatigue: 10, stress: 5 },
     narrative: () =>
       "Kamu menyelesaikan dua desain kilat untuk klien daring. Bayarannya lumayan, tapi mata terasa perih menahan kantuk.",
+  },
+  rekamKontenMalam: {
+    label: "Rekam konten update malam ini",
+    time: 0.5,
+    traits: ["social", "mental"],
+    condition: (state) => !state.flags.creatorChannel,
+    baseEffects: { confidence: 2, networking: 2, ingenuity: 1 },
+    statusChanges: { stress: -2, fatigue: 1 },
+    narrative: () =>
+      "Kamu merekam video pendek tentang kondisi Ayah dan rencana bertahan. Pesan empati berdatangan dari teman lama.",
+    after: (state) => {
+      state.flags.creatorChannel = true;
+      state.flags.creatorMomentum = 1;
+      return "Video itu dibagikan ulang. Beberapa orang bertanya bagaimana cara membantu secara langsung.";
+    },
+  },
+  siaranDukungan: {
+    label: "Siaran dukungan tengah malam",
+    time: 0.75,
+    traits: ["social", "business"],
+    condition: (state) => state.flags.creatorChannel,
+    baseEffects: { confidence: 1, networking: 2 },
+    statusChanges: (state) => {
+      const momentum = Math.max(state.flags.creatorMomentum || 1, 1);
+      const cappedMomentum = Math.min(momentum, 5);
+      const baseIncome = 220_000;
+      const bonus = (cappedMomentum - 1) * 55_000;
+      return { money: baseIncome + bonus, stress: -3, fatigue: 2, trauma: -1 };
+    },
+    narrative: () =>
+      "Lewat siaran singkat kamu berbagi kabar terbaru, menerima doa, dan mengingatkan penonton soal kondisi Ayah.",
+    after: (state) => {
+      const momentum = state.flags.creatorMomentum || 1;
+      state.flags.creatorMomentum = Math.min(momentum + 1, 6);
+      return "Penonton mengirim tip kecil dan menawarkan membagikan kanalmu ke komunitas dukungan lain.";
+    },
   },
   tulisJurnal: {
     label: "Tulis jurnal penguat diri",

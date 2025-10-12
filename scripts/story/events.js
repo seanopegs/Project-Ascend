@@ -4,7 +4,7 @@ export const scheduledEvents = [
     condition: (state) => state.day === 1 && state.hour >= 23 && !state.flags.debtCollectorKnock,
     narrative: () =>
       "Ketukan keras menghantam pintu depan. \"Bayar sekarang atau kami tunggu sampai pagi,\" suara berat terdengar.",
-    baseEffects: { awareness: 2, sadism: 1 },
+    baseEffects: { awareness: 2, assertiveness: 1 },
     statusChanges: { stress: 8, trauma: 4 },
     after: (state) => {
       state.flags.debtCollectorKnock = true;
@@ -36,7 +36,7 @@ export const scheduledEvents = [
     condition: (state) => state.flags.awaitingDina && state.hour >= 6,
     narrative: () =>
       "Dina muncul mengenakan hoodie dan membawa termos. \"Aku pinjami lima juta, tapi tolong kabari progresnya tiap beberapa hari, ya,\" ujarnya.",
-    baseEffects: { promiscuity: 2, willpower: 1, purity: 1 },
+    baseEffects: { networking: 2, willpower: 1, purity: 1 },
     statusChanges: { money: 5_000_000, stress: -6, fatigue: -3, fatherHealth: 4 },
     after: (state) => {
       state.flags.awaitingDina = false;
@@ -79,7 +79,7 @@ export const randomEvents = [
     chance: (state) => (state.hour >= 5 && state.hour <= 8 ? 0.35 : 0.15),
     narrative: () =>
       "Ketukan pelan di pintu belakang. Bu Siti dari rumah sebelah menyerahkan termos sup dan menawarkan diri jadi saksi jika dibutuhkan.",
-    baseEffects: { promiscuity: 1, purity: 1 },
+    baseEffects: { networking: 1, purity: 1 },
     statusChanges: { stress: -5, fatigue: -4, fatherHealth: 3 },
     after: (state) => {
       state.flags.safeWithSupport = true;
@@ -91,7 +91,7 @@ export const randomEvents = [
     chance: () => 0.25,
     narrative: () =>
       "Pak RT mengirim pesan: \"Jika mereka datang lagi, hubungi saya. Saya sudah bicara dengan RW soal perlindungan hukum.\"",
-    baseEffects: { promiscuity: 2, exhibitionism: 1 },
+    baseEffects: { networking: 2, confidence: 1 },
     statusChanges: { stress: -3, trauma: -2 },
     after: (state) => {
       state.flags.safeWithSupport = true;

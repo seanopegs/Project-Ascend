@@ -75,22 +75,22 @@ var GameApp = (() => {
       colorStrong: "#ec4899",
       colorSoft: "rgba(244, 114, 182, 0.22)"
     },
-    promiscuity: {
-      displayName: "Promiscuity",
-      alias: "Keluwesan Relasi",
-      description: "Kemampuan menjalin jaringan dukungan lintas komunitas tanpa ragu menjelaskan kebutuhanmu.",
+    networking: {
+      displayName: "Networking",
+      alias: "Jaringan Sosial",
+      description: "Kemampuan menjalin dukungan lintas komunitas dan menjaga kepercayaan mereka.",
       max: 100,
-      initial: 35,
+      initial: 36,
       color: "#34d399",
       colorStrong: "#10b981",
       colorSoft: "rgba(52, 211, 153, 0.22)"
     },
-    exhibitionism: {
-      displayName: "Exhibitionism",
-      alias: "Keberanian Tampil",
-      description: "Kesiapanmu berbicara terbuka soal situasi keluarga kepada orang lain atau otoritas.",
+    confidence: {
+      displayName: "Confidence",
+      alias: "Kepercayaan Diri",
+      description: "Keberanian berbicara terbuka soal situasi keluarga dan menegosiasikan bantuan yang kamu butuhkan.",
       max: 100,
-      initial: 32,
+      initial: 42,
       color: "#60a5fa",
       colorStrong: "#3b82f6",
       colorSoft: "rgba(96, 165, 250, 0.22)"
@@ -105,22 +105,32 @@ var GameApp = (() => {
       colorStrong: "#f43f5e",
       colorSoft: "rgba(251, 113, 133, 0.22)"
     },
-    masochism: {
-      displayName: "Masochism",
-      alias: "Daya Tahan Tekanan",
-      description: "Kemampuan menerima lelah, takut, dan malu sementara demi visi yang lebih besar untuk keluarga.",
+    ingenuity: {
+      displayName: "Ingenuity",
+      alias: "Kecakapan Bisnis",
+      description: "Kepekaan melihat peluang usaha, menaksir risiko, dan menumbuhkan sumber pendapatan baru.",
+      max: 100,
+      initial: 38,
+      color: "#14b8a6",
+      colorStrong: "#0f766e",
+      colorSoft: "rgba(20, 184, 166, 0.22)"
+    },
+    resilience: {
+      displayName: "Resilience",
+      alias: "Resiliensi",
+      description: "Kemampuan bertahan di bawah tekanan fisik dan mental tanpa kehilangan arah.",
       max: 100,
       initial: 44,
       color: "#f59e0b",
       colorStrong: "#d97706",
       colorSoft: "rgba(245, 158, 11, 0.22)"
     },
-    sadism: {
-      displayName: "Sadism",
-      alias: "Ketegasan Menghadapi",
-      description: "Kemauan menekan balik dan menetapkan batas tegas terhadap pihak yang menindas.",
+    assertiveness: {
+      displayName: "Assertiveness",
+      alias: "Ketegasan",
+      description: "Ketahanan saat menetapkan batas, menagih komitmen, dan menghadapi intimidasi.",
       max: 100,
-      initial: 20,
+      initial: 30,
       color: "#a3e635",
       colorStrong: "#84cc16",
       colorSoft: "rgba(163, 230, 53, 0.22)"
@@ -132,11 +142,12 @@ var GameApp = (() => {
     "physique",
     "willpower",
     "beauty",
-    "promiscuity",
-    "exhibitionism",
+    "networking",
+    "confidence",
     "deviancy",
-    "masochism",
-    "sadism"
+    "ingenuity",
+    "resilience",
+    "assertiveness"
   ];
   var tierLabels = ["", "Pemula", "Terkondisi", "Tangkas", "Berdaya", "Visioner"];
   function createInitialStats() {
@@ -315,7 +326,7 @@ var GameApp = (() => {
       time: 0.5,
       traits: ["mental", "documentation"],
       condition: (state) => !state.flags.hasChronology,
-      baseEffects: { awareness: 2, exhibitionism: 1, sadism: 1 },
+      baseEffects: { awareness: 2, confidence: 1, assertiveness: 1 },
       statusChanges: { stress: -2 },
       narrative: () => "Kamu menyiapkan ponsel untuk merekam dan menuliskan kronologi detail. Jika mereka memaksa masuk, kamu punya bukti.",
       after: (state) => {
@@ -327,7 +338,7 @@ var GameApp = (() => {
       time: 0.25,
       traits: ["social"],
       condition: (state) => !state.flags.awaitingDina && !state.flags.dinaArrived,
-      baseEffects: { promiscuity: 3, willpower: 1, beauty: 1 },
+      baseEffects: { networking: 3, willpower: 1, beauty: 1 },
       statusChanges: { stress: -3 },
       narrative: () => "Dina menjawab dengan suara kantuk. Ia siap meminjamkan lima juta dan berjanji mampir begitu fajar.",
       after: (state) => {
@@ -340,7 +351,7 @@ var GameApp = (() => {
       time: 0.5,
       traits: ["social", "mental", "recovery"],
       condition: (state) => state.flags.dinaArrived,
-      baseEffects: { promiscuity: 1, purity: 1, willpower: 1 },
+      baseEffects: { networking: 1, purity: 1, willpower: 1 },
       statusChanges: { stress: -4, trauma: -2 },
       narrative: () => "Kamu menelepon Dina, menjelaskan kondisi Ayah dan strategi pembayaranmu. Suaranya tenang dan menegaskan kamu tidak sendirian.",
       after: (state) => {
@@ -399,7 +410,7 @@ var GameApp = (() => {
       label: "Periksa kondisi Ayah",
       time: 0.5,
       traits: ["care", "physical"],
-      baseEffects: { purity: 2, masochism: 2, willpower: 1, beauty: 1 },
+      baseEffects: { purity: 2, resilience: 2, willpower: 1, beauty: 1 },
       statusChanges: { fatherHealth: 8, stress: -4, fatigue: 2 },
       narrative: () => "Ayah demam. Kamu mengganti kompres dan mengusap dahinya hingga napasnya kembali teratur.",
       after: (state) => {
@@ -411,7 +422,7 @@ var GameApp = (() => {
       time: 0.75,
       traits: ["recovery"],
       condition: (state) => state.fatigue >= 25,
-      baseEffects: { masochism: -1, willpower: 1 },
+      baseEffects: { resilience: -1, willpower: 1 },
       statusChanges: { fatigue: -14, stress: -3 },
       narrative: () => "Kamu menyandarkan kepala di tepi ranjang tanpa benar-benar tidur. Setidaknya ototmu beristirahat sebentar."
     },
@@ -428,7 +439,7 @@ var GameApp = (() => {
       time: 0.5,
       traits: ["care", "mental"],
       condition: (state) => !state.flags.preparedMedicine,
-      baseEffects: { purity: 1, masochism: 1 },
+      baseEffects: { purity: 1, resilience: 1 },
       statusChanges: { fatherHealth: 4, fatigue: 1 },
       narrative: () => "Kamu menyusun obat penurun demam dan segelas air hangat, memastikan dosisnya aman.",
       after: (state) => {
@@ -439,7 +450,7 @@ var GameApp = (() => {
       label: "Pantau penagih dari balik tirai",
       time: 0.25,
       traits: ["vigilance", "mental"],
-      baseEffects: { awareness: 3, exhibitionism: -1, masochism: 1 },
+      baseEffects: { awareness: 3, confidence: -1, resilience: 1 },
       statusChanges: { stress: 3 },
       narrative: () => "Lewat tirai, kamu melihat dua orang lelaki bersandar di motor dengan map merah khas penagih."
     },
@@ -447,7 +458,7 @@ var GameApp = (() => {
       label: "Periksa dan kunci seluruh pintu",
       time: 0.5,
       traits: ["physical", "security"],
-      baseEffects: { awareness: 2, masochism: 1 },
+      baseEffects: { awareness: 2, resilience: 1 },
       statusChanges: { stress: -2 },
       narrative: () => "Kamu memastikan semua pintu dan jendela terkunci rapat, menambah gembok cadangan di gerendel depan.",
       after: (state) => {
@@ -459,7 +470,7 @@ var GameApp = (() => {
       label: "Hadapi penagih lewat pintu",
       time: 1,
       condition: (state) => state.flags.debtCollectorKnock && !state.flags.confrontedCollector,
-      baseEffects: { exhibitionism: 2, sadism: 3, willpower: -1 },
+      baseEffects: { confidence: 2, assertiveness: 3, willpower: -1 },
       statusChanges: { stress: 4, trauma: 4 },
       narrative: () => "Kamu berbicara tegas dari balik pintu, menolak intimidasi dan menegaskan kondisi Ayah yang sakit.",
       after: (state) => {
@@ -479,18 +490,52 @@ var GameApp = (() => {
         state.flags.planPrepared = true;
       }
     },
+    risetUsahaRumahan: {
+      label: "Riset peluang usaha tetangga",
+      time: 1.25,
+      traits: ["planning", "business", "mental"],
+      condition: (state) => !state.flags.homeBusinessPlan,
+      baseEffects: { ingenuity: 4, networking: 1, confidence: 1 },
+      statusChanges: { stress: 2, fatigue: 3 },
+      narrative: () => "Kamu mendata menu siap saji favorit tetangga, menghitung modal bahan, dan menyiapkan daftar pemasok kecil.",
+      after: (state) => {
+        state.flags.homeBusinessPlan = true;
+        state.flags.homeBusinessMomentum = 0;
+        return "Catatan rapi ada di meja\u2014tinggal berani membuka pre-order pertama.";
+      }
+    },
     kirimRencana: {
       label: "Kirim rencana ke debt collector",
       time: 0.5,
       traits: ["planning", "social"],
       condition: (state) => state.flags.planPrepared && !state.flags.planSent,
-      baseEffects: { sadism: 1, willpower: 1 },
+      baseEffects: { assertiveness: 1, willpower: 1 },
       statusChanges: { stress: -2 },
       narrative: () => "Kamu mengirimkan rencana pembayaran lengkap dengan jadwal dan bukti pemasukan stabil.",
       after: (state) => {
         state.flags.planSent = true;
         state.flags.safeWithSupport = true;
         return "Balasan cepat datang: mereka akan cek ke kantor dan kembali pagi nanti.";
+      }
+    },
+    kelolaPreOrder: {
+      label: "Kelola pre-order camilan daring",
+      time: 1.25,
+      traits: ["business", "work"],
+      condition: (state) => state.flags.homeBusinessPlan,
+      baseEffects: { ingenuity: 1, resilience: 1 },
+      statusChanges: (state) => {
+        const momentum = Math.min(state.flags.homeBusinessMomentum || 0, 4);
+        const baseIncome = 38e4;
+        const bonus = momentum * 45e3;
+        return { money: baseIncome + bonus, fatigue: 6, stress: 3 };
+      },
+      narrative: () => "Kamu menyiapkan paket camilan, memotret, lalu membalas pesan titipan pesanan dari grup tetangga.",
+      after: (state) => {
+        state.flags.homeBusinessLaunched = true;
+        const momentum = state.flags.homeBusinessMomentum || 0;
+        state.flags.homeBusinessMomentum = Math.min(momentum + 1, 6);
+        return "Pesanan terkumpul dan uang muka masuk ke dompet digital. Besok pagi kamu tinggal mengantar.";
       }
     },
     kerjaLembur: {
@@ -500,6 +545,40 @@ var GameApp = (() => {
       baseEffects: { physique: -2, willpower: 2 },
       statusChanges: { money: 18e4, fatigue: 10, stress: 5 },
       narrative: () => "Kamu menyelesaikan dua desain kilat untuk klien daring. Bayarannya lumayan, tapi mata terasa perih menahan kantuk."
+    },
+    rekamKontenMalam: {
+      label: "Rekam konten update malam ini",
+      time: 0.5,
+      traits: ["social", "mental"],
+      condition: (state) => !state.flags.creatorChannel,
+      baseEffects: { confidence: 2, networking: 2, ingenuity: 1 },
+      statusChanges: { stress: -2, fatigue: 1 },
+      narrative: () => "Kamu merekam video pendek tentang kondisi Ayah dan rencana bertahan. Pesan empati berdatangan dari teman lama.",
+      after: (state) => {
+        state.flags.creatorChannel = true;
+        state.flags.creatorMomentum = 1;
+        return "Video itu dibagikan ulang. Beberapa orang bertanya bagaimana cara membantu secara langsung.";
+      }
+    },
+    siaranDukungan: {
+      label: "Siaran dukungan tengah malam",
+      time: 0.75,
+      traits: ["social", "business"],
+      condition: (state) => state.flags.creatorChannel,
+      baseEffects: { confidence: 1, networking: 2 },
+      statusChanges: (state) => {
+        const momentum = Math.max(state.flags.creatorMomentum || 1, 1);
+        const cappedMomentum = Math.min(momentum, 5);
+        const baseIncome = 22e4;
+        const bonus = (cappedMomentum - 1) * 55e3;
+        return { money: baseIncome + bonus, stress: -3, fatigue: 2, trauma: -1 };
+      },
+      narrative: () => "Lewat siaran singkat kamu berbagi kabar terbaru, menerima doa, dan mengingatkan penonton soal kondisi Ayah.",
+      after: (state) => {
+        const momentum = state.flags.creatorMomentum || 1;
+        state.flags.creatorMomentum = Math.min(momentum + 1, 6);
+        return "Penonton mengirim tip kecil dan menawarkan membagikan kanalmu ke komunitas dukungan lain.";
+      }
     },
     tulisJurnal: {
       label: "Tulis jurnal penguat diri",
@@ -531,6 +610,8 @@ var GameApp = (() => {
         { type: "action", id: "hubungiDina" },
         { type: "action", id: "laporKeDina" },
         { type: "action", id: "cicilKeDina" },
+        { type: "action", id: "rekamKontenMalam" },
+        { type: "action", id: "siaranDukungan" },
         { type: "action", id: "latihanNapas" },
         { type: "action", id: "bayarDebtSebagian" },
         { type: "action", id: "tulisJurnal" }
@@ -606,6 +687,8 @@ var GameApp = (() => {
       actions: [
         { type: "action", id: "susunRencana" },
         { type: "action", id: "kirimRencana" },
+        { type: "action", id: "risetUsahaRumahan" },
+        { type: "action", id: "kelolaPreOrder" },
         { type: "action", id: "kerjaLembur" },
         { type: "action", id: "tulisJurnal" }
       ],
@@ -619,7 +702,7 @@ var GameApp = (() => {
       id: "debtCollectorKnock",
       condition: (state) => state.day === 1 && state.hour >= 23 && !state.flags.debtCollectorKnock,
       narrative: () => 'Ketukan keras menghantam pintu depan. "Bayar sekarang atau kami tunggu sampai pagi," suara berat terdengar.',
-      baseEffects: { awareness: 2, sadism: 1 },
+      baseEffects: { awareness: 2, assertiveness: 1 },
       statusChanges: { stress: 8, trauma: 4 },
       after: (state) => {
         state.flags.debtCollectorKnock = true;
@@ -649,7 +732,7 @@ var GameApp = (() => {
       id: "dinaArrives",
       condition: (state) => state.flags.awaitingDina && state.hour >= 6,
       narrative: () => 'Dina muncul mengenakan hoodie dan membawa termos. "Aku pinjami lima juta, tapi tolong kabari progresnya tiap beberapa hari, ya," ujarnya.',
-      baseEffects: { promiscuity: 2, willpower: 1, purity: 1 },
+      baseEffects: { networking: 2, willpower: 1, purity: 1 },
       statusChanges: { money: 5e6, stress: -6, fatigue: -3, fatherHealth: 4 },
       after: (state) => {
         state.flags.awaitingDina = false;
@@ -689,7 +772,7 @@ var GameApp = (() => {
       condition: (state) => state.location === "dapur" && !state.flags.safeWithSupport,
       chance: (state) => state.hour >= 5 && state.hour <= 8 ? 0.35 : 0.15,
       narrative: () => "Ketukan pelan di pintu belakang. Bu Siti dari rumah sebelah menyerahkan termos sup dan menawarkan diri jadi saksi jika dibutuhkan.",
-      baseEffects: { promiscuity: 1, purity: 1 },
+      baseEffects: { networking: 1, purity: 1 },
       statusChanges: { stress: -5, fatigue: -4, fatherHealth: 3 },
       after: (state) => {
         state.flags.safeWithSupport = true;
@@ -700,7 +783,7 @@ var GameApp = (() => {
       condition: (state) => state.location === "halaman" && state.flags.debtCollectorKnock,
       chance: () => 0.25,
       narrative: () => 'Pak RT mengirim pesan: "Jika mereka datang lagi, hubungi saya. Saya sudah bicara dengan RW soal perlindungan hukum."',
-      baseEffects: { promiscuity: 2, exhibitionism: 1 },
+      baseEffects: { networking: 2, confidence: 1 },
       statusChanges: { stress: -3, trauma: -2 },
       after: (state) => {
         state.flags.safeWithSupport = true;
@@ -738,6 +821,14 @@ var GameApp = (() => {
   var resizeListenerAttached = false;
   function clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);
+  }
+  function parsePositiveNumber(value) {
+    const numeric = Number.parseFloat(value);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+  }
+  function parseDimension(value) {
+    const numeric = Number.parseFloat(value);
+    return Number.isFinite(numeric) ? numeric : null;
   }
   function syncDocumentState() {
     const html = document.documentElement;
@@ -822,6 +913,11 @@ var GameApp = (() => {
       lockScroll: config.lockScroll !== false,
       draggable: config.draggable === true,
       dragHandle: typeof config.dragHandle === "string" ? config.dragHandle : null,
+      resizable: config.resizable === true,
+      minWidth: parsePositiveNumber(config.minWidth) ?? 420,
+      minHeight: parsePositiveNumber(config.minHeight) ?? 320,
+      maxWidth: parsePositiveNumber(config.maxWidth) ?? null,
+      maxHeight: parsePositiveNumber(config.maxHeight) ?? null,
       onOpen: typeof config.onOpen === "function" ? config.onOpen : null,
       onClose: typeof config.onClose === "function" ? config.onClose : null
     };
@@ -862,6 +958,10 @@ var GameApp = (() => {
     let focusableElements = [];
     let previouslyFocusedElement = null;
     let dragState = null;
+    let resizeHandle = null;
+    let resizeState = null;
+    let hasManualWidth = false;
+    let hasManualHeight = false;
     function updateContainerState() {
       container.dataset.open = isOpen ? "true" : "false";
       container.setAttribute("aria-hidden", isOpen ? "false" : "true");
@@ -943,6 +1043,88 @@ var GameApp = (() => {
       const constrained = constrainToViewport(width, height, x, y);
       applyOffset(constrained.x, constrained.y);
     }
+    function getSizeConstraints() {
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+      const marginX = Math.min(48, Math.max(16, Math.floor(viewportWidth * 0.05)));
+      const marginY = Math.min(48, Math.max(16, Math.floor(viewportHeight * 0.08)));
+      const availableWidth = Math.max(280, viewportWidth - marginX * 2);
+      const availableHeight = Math.max(240, viewportHeight - marginY * 2);
+      let maxWidth = options.maxWidth ? Math.min(options.maxWidth, availableWidth) : availableWidth;
+      let maxHeight = options.maxHeight ? Math.min(options.maxHeight, availableHeight) : availableHeight;
+      let minWidth = Math.min(options.minWidth, availableWidth);
+      let minHeight = Math.min(options.minHeight, availableHeight);
+      if (!Number.isFinite(maxWidth) || maxWidth <= 0) {
+        maxWidth = availableWidth;
+      }
+      if (!Number.isFinite(maxHeight) || maxHeight <= 0) {
+        maxHeight = availableHeight;
+      }
+      if (minWidth > maxWidth) {
+        minWidth = maxWidth;
+      }
+      if (minHeight > maxHeight) {
+        minHeight = maxHeight;
+      }
+      return {
+        minWidth: Math.max(240, minWidth),
+        minHeight: Math.max(200, minHeight),
+        maxWidth: Math.max(240, maxWidth),
+        maxHeight: Math.max(200, maxHeight)
+      };
+    }
+    function getCurrentSize() {
+      const rect = surface.getBoundingClientRect();
+      const inlineWidth = parseDimension(surface.style.width);
+      const inlineHeight = parseDimension(surface.style.height);
+      const width = inlineWidth ?? rect.width;
+      const height = inlineHeight ?? rect.height;
+      return { width, height, inlineWidth, inlineHeight, rect };
+    }
+    function applySize(width, height, { manual = false } = {}) {
+      if (Number.isFinite(width)) {
+        const rounded = Math.max(0, Math.round(width));
+        surface.style.width = `${rounded}px`;
+        if (manual) {
+          hasManualWidth = true;
+        }
+      }
+      if (Number.isFinite(height)) {
+        const rounded = Math.max(0, Math.round(height));
+        surface.style.height = `${rounded}px`;
+        if (manual) {
+          hasManualHeight = true;
+        }
+      }
+    }
+    function clearSurfaceSize() {
+      surface.style.removeProperty("width");
+      surface.style.removeProperty("height");
+      hasManualWidth = false;
+      hasManualHeight = false;
+    }
+    function clampSizeToViewport() {
+      if (!options.resizable) {
+        return;
+      }
+      const { width, height, inlineWidth, inlineHeight } = getCurrentSize();
+      const constraints = getSizeConstraints();
+      const enforceMinWidth = hasManualWidth || inlineWidth !== null;
+      const enforceMinHeight = hasManualHeight || inlineHeight !== null;
+      const minWidth = enforceMinWidth ? constraints.minWidth : Math.min(width, constraints.maxWidth);
+      const minHeight = enforceMinHeight ? constraints.minHeight : Math.min(height, constraints.maxHeight);
+      const clampedWidth = clamp(width, minWidth, constraints.maxWidth);
+      const clampedHeight = clamp(height, minHeight, constraints.maxHeight);
+      const widthNeedsUpdate = enforceMinWidth || inlineWidth !== null || clampedWidth !== width;
+      const heightNeedsUpdate = enforceMinHeight || inlineHeight !== null || clampedHeight !== height;
+      if (widthNeedsUpdate) {
+        applySize(clampedWidth, null);
+      }
+      if (heightNeedsUpdate) {
+        applySize(null, clampedHeight);
+      }
+      commitConstrainedOffsets({ width: clampedWidth, height: clampedHeight });
+    }
     function stopDragging() {
       if (!dragState) {
         return;
@@ -1017,16 +1199,119 @@ var GameApp = (() => {
       beginDrag(event);
     }
     surface.addEventListener("pointerdown", handleSurfacePointerDown);
+    function stopResizing({ commit = true } = {}) {
+      if (!resizeState) {
+        return;
+      }
+      window.removeEventListener("pointermove", handleResizePointerMove);
+      window.removeEventListener("pointerup", handleResizePointerUp);
+      window.removeEventListener("pointercancel", handleResizePointerUp);
+      resizeHandle?.releasePointerCapture?.(resizeState.pointerId);
+      surface.classList.remove("is-resizing");
+      if (commit) {
+        clampSizeToViewport();
+      }
+      resizeState = null;
+    }
+    function handleResizePointerMove(event) {
+      if (!resizeState || event.pointerId !== resizeState.pointerId) {
+        return;
+      }
+      const deltaX = event.clientX - resizeState.startX;
+      const deltaY = event.clientY - resizeState.startY;
+      const constraints = getSizeConstraints();
+      const desiredWidth = resizeState.baseWidth + deltaX;
+      const desiredHeight = resizeState.baseHeight + deltaY;
+      const width = clamp(desiredWidth, constraints.minWidth, constraints.maxWidth);
+      const height = clamp(desiredHeight, constraints.minHeight, constraints.maxHeight);
+      applySize(width, height, { manual: true });
+      commitConstrainedOffsets({ width, height });
+    }
+    function handleResizePointerUp(event) {
+      if (!resizeState || event.pointerId !== resizeState.pointerId) {
+        return;
+      }
+      stopResizing();
+    }
+    function handleResizePointerDown(event) {
+      if (event.button !== 0 || !options.resizable) {
+        return;
+      }
+      if (!(event.currentTarget instanceof HTMLElement)) {
+        return;
+      }
+      const rect = surface.getBoundingClientRect();
+      resizeState = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        baseWidth: rect.width,
+        baseHeight: rect.height
+      };
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      surface.classList.add("is-resizing");
+      window.addEventListener("pointermove", handleResizePointerMove);
+      window.addEventListener("pointerup", handleResizePointerUp);
+      window.addEventListener("pointercancel", handleResizePointerUp);
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    function ensureResizeHandle() {
+      if (!options.resizable) {
+        return;
+      }
+      if (resizeHandle && surface.contains(resizeHandle)) {
+        return;
+      }
+      if (resizeHandle) {
+        resizeHandle.removeEventListener("pointerdown", handleResizePointerDown);
+        resizeHandle = null;
+      }
+      const handle = document.createElement("div");
+      handle.className = "modal-resize-handle";
+      handle.setAttribute("aria-hidden", "true");
+      handle.tabIndex = -1;
+      surface.appendChild(handle);
+      handle.addEventListener("pointerdown", handleResizePointerDown);
+      resizeHandle = handle;
+    }
+    function destroyResizeHandle() {
+      if (!resizeHandle) {
+        return;
+      }
+      resizeHandle.removeEventListener("pointerdown", handleResizePointerDown);
+      if (resizeHandle.parentNode === surface) {
+        resizeHandle.parentNode.removeChild(resizeHandle);
+      }
+      resizeHandle = null;
+    }
+    function syncResizableState() {
+      if (options.resizable) {
+        surface.dataset.resizable = "true";
+        ensureResizeHandle();
+        if (isOpen) {
+          clampSizeToViewport();
+        }
+      } else {
+        stopResizing({ commit: false });
+        destroyResizeHandle();
+        delete surface.dataset.resizable;
+        clearSurfaceSize();
+      }
+    }
     function handleViewportResize() {
       if (!isOpen) {
         return;
       }
-      if (options.draggable) {
+      if (options.resizable) {
+        clampSizeToViewport();
+      } else if (options.draggable) {
         commitConstrainedOffsets();
       }
     }
     window.addEventListener("resize", handleViewportResize, { passive: true });
     window.addEventListener("orientationchange", handleViewportResize, { passive: true });
+    syncResizableState();
     function openModal() {
       if (isOpen) {
         return;
@@ -1035,12 +1320,15 @@ var GameApp = (() => {
       previouslyFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       isOpen = true;
       updateContainerState();
+      syncResizableState();
       if (options.lockScroll) {
         lockedModalCount += 1;
         ensureResizeListener();
         syncDocumentState();
       }
-      if (options.draggable) {
+      if (options.resizable) {
+        clampSizeToViewport();
+      } else if (options.draggable) {
         commitConstrainedOffsets();
       }
       focusInitialElement();
@@ -1052,6 +1340,7 @@ var GameApp = (() => {
       }
       isOpen = false;
       updateContainerState();
+      stopResizing({ commit: false });
       stopDragging();
       resetPosition();
       if (options.lockScroll) {
@@ -1149,6 +1438,7 @@ var GameApp = (() => {
         requestCloseHandler = typeof handler === "function" ? handler : null;
       },
       updateConfig(next = {}) {
+        let layoutChanged = false;
         if (typeof next.labelledBy === "string") {
           container.setAttribute("aria-labelledby", next.labelledBy);
         }
@@ -1168,7 +1458,7 @@ var GameApp = (() => {
           options.lockScroll = next.lockScroll;
           container.dataset.modalMode = options.lockScroll ? "modal" : "floating";
           container.dataset.modalOverlay = options.lockScroll ? "scrim" : "none";
-          if (isOpen && options.draggable) {
+          if (isOpen && options.draggable && !options.resizable) {
             commitConstrainedOffsets();
           }
         }
@@ -1190,11 +1480,51 @@ var GameApp = (() => {
         if (typeof next.dragHandle === "string" || next.dragHandle === null) {
           options.dragHandle = typeof next.dragHandle === "string" ? next.dragHandle : null;
         }
+        if (typeof next.resizable === "boolean") {
+          options.resizable = next.resizable;
+          layoutChanged = true;
+        }
+        const minWidth = parsePositiveNumber(next.minWidth);
+        if (minWidth !== null) {
+          options.minWidth = minWidth;
+          layoutChanged = true;
+        }
+        const minHeight = parsePositiveNumber(next.minHeight);
+        if (minHeight !== null) {
+          options.minHeight = minHeight;
+          layoutChanged = true;
+        }
+        if (next.maxWidth === null) {
+          options.maxWidth = null;
+          layoutChanged = true;
+        } else {
+          const maxWidth = parsePositiveNumber(next.maxWidth);
+          if (maxWidth !== null) {
+            options.maxWidth = maxWidth;
+            layoutChanged = true;
+          }
+        }
+        if (next.maxHeight === null) {
+          options.maxHeight = null;
+          layoutChanged = true;
+        } else {
+          const maxHeight = parsePositiveNumber(next.maxHeight);
+          if (maxHeight !== null) {
+            options.maxHeight = maxHeight;
+            layoutChanged = true;
+          }
+        }
         if (typeof next.onOpen === "function") {
           options.onOpen = next.onOpen;
         }
         if (typeof next.onClose === "function") {
           options.onClose = next.onClose;
+        }
+        if (layoutChanged) {
+          syncResizableState();
+          if (!options.resizable && options.draggable && isOpen) {
+            commitConstrainedOffsets();
+          }
         }
       },
       destroy() {
@@ -1203,6 +1533,10 @@ var GameApp = (() => {
         surface.removeEventListener("pointerdown", handleSurfacePointerDown);
         window.removeEventListener("resize", handleViewportResize);
         window.removeEventListener("orientationchange", handleViewportResize);
+        stopResizing({ commit: false });
+        destroyResizeHandle();
+        delete surface.dataset.resizable;
+        clearSurfaceSize();
         closeModal({ restoreFocus: false });
         container.innerHTML = "";
         container.classList.remove("modal-host");
@@ -1281,6 +1615,9 @@ var GameApp = (() => {
       lockScroll: false,
       draggable: true,
       dragHandle: ".stats-modal__header",
+      resizable: true,
+      minWidth: 520,
+      minHeight: 420,
       onRequestClose: () => {
         if (onRequestCloseRef) {
           onRequestCloseRef();
@@ -1547,23 +1884,41 @@ var GameApp = (() => {
   var containerRef3 = null;
   var cellElements = /* @__PURE__ */ new Map();
   var connectionElements = /* @__PURE__ */ new Map();
+  var roomMetadata = /* @__PURE__ */ new Map();
   var gridRows = Math.max(...layout.map((room) => room.row));
   var gridCols = Math.max(...layout.map((room) => room.col));
   var GRID_UNIT = 100;
+  var travelHandler = null;
+  var activeLocationId = null;
   function buildConnectionKey(a, b) {
     return [a, b].sort().join("::");
   }
-  function initializeMiniMap(container) {
+  function handleCellClick(targetId) {
+    if (!travelHandler) {
+      return;
+    }
+    if (targetId === activeLocationId) {
+      return;
+    }
+    travelHandler(targetId);
+  }
+  function initializeMiniMap(container, options = {}) {
     if (!container) {
       containerRef3 = null;
       cellElements.clear();
       connectionElements.clear();
+      roomMetadata.clear();
+      travelHandler = null;
+      activeLocationId = null;
       return;
     }
     containerRef3 = container;
     containerRef3.innerHTML = "";
-    containerRef3.setAttribute("role", "img");
-    containerRef3.setAttribute("aria-label", "Denah rumah");
+    cellElements.clear();
+    containerRef3.setAttribute("role", "group");
+    containerRef3.setAttribute("aria-label", "Denah rumah dan jalur perpindahan");
+    travelHandler = typeof options.onRequestTravel === "function" ? options.onRequestTravel : null;
+    activeLocationId = null;
     const grid = document.createElement("div");
     grid.className = "mini-map-grid";
     grid.style.setProperty("--rows", String(gridRows));
@@ -1573,18 +1928,24 @@ var GameApp = (() => {
     overlay.setAttribute("viewBox", `0 0 ${gridCols * GRID_UNIT} ${gridRows * GRID_UNIT}`);
     overlay.setAttribute("preserveAspectRatio", "xMidYMid meet");
     connectionElements.clear();
+    roomMetadata.clear();
     layout.forEach((room) => {
-      const cell = document.createElement("div");
+      const cell = document.createElement("button");
       cell.className = "mini-map-cell";
+      cell.type = "button";
       cell.dataset.location = room.id;
       cell.style.setProperty("--row", room.row);
       cell.style.setProperty("--col", room.col);
+      cell.setAttribute("aria-label", room.label);
+      cell.title = room.label;
+      cell.addEventListener("click", () => handleCellClick(room.id));
       const name = document.createElement("span");
       name.className = "mini-map-label";
       name.textContent = room.label;
       cell.appendChild(name);
       grid.appendChild(cell);
       cellElements.set(room.id, cell);
+      roomMetadata.set(room.id, { label: room.label });
     });
     containerRef3.appendChild(overlay);
     containerRef3.appendChild(grid);
@@ -1621,14 +1982,38 @@ var GameApp = (() => {
     if (!cellElements.size) {
       return;
     }
+    activeLocationId = activeLocation;
+    const current = locations[activeLocation];
+    const reachable = new Set(current?.connections || []);
     cellElements.forEach((cell, id) => {
-      if (id === activeLocation) {
-        cell.classList.add("active");
+      const isActive = id === activeLocation;
+      const isAdjacent = reachable.has(id);
+      const canTravel = isAdjacent;
+      const metadata = roomMetadata.get(id);
+      const labelParts = [metadata?.label ?? id];
+      cell.classList.toggle("active", isActive);
+      cell.classList.toggle("adjacent", isAdjacent);
+      if (isActive) {
         cell.setAttribute("aria-current", "true");
+        labelParts.push("Lokasi saat ini.");
       } else {
-        cell.classList.remove("active");
         cell.removeAttribute("aria-current");
+        if (canTravel) {
+          labelParts.push("Klik untuk berpindah.");
+        } else {
+          labelParts.push("Belum bisa diakses langsung.");
+        }
       }
+      if (isActive || canTravel) {
+        cell.disabled = false;
+        cell.removeAttribute("aria-disabled");
+      } else {
+        cell.disabled = true;
+        cell.setAttribute("aria-disabled", "true");
+      }
+      const label = labelParts.join(" ").trim();
+      cell.setAttribute("aria-label", label);
+      cell.title = label;
     });
     connectionElements.forEach((line) => {
       if (!line) return;
@@ -1836,6 +2221,9 @@ var GameApp = (() => {
       lockScroll: false,
       draggable: true,
       dragHandle: ".journal-modal__header",
+      resizable: true,
+      minWidth: 560,
+      minHeight: 420,
       onRequestClose: () => {
         setJournalVisibility(false);
         return true;
@@ -2161,6 +2549,78 @@ var GameApp = (() => {
   var miniMapContainer;
   var themeToggleButton;
   var statsPanelVisible = false;
+  var ACTION_HOTKEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
+  var TRAVEL_HOTKEYS = Array.from("abcdefghijklmnopqrstuvwxyz");
+  var choiceHotkeys = /* @__PURE__ */ new Map();
+  var hotkeyListenerAttached = false;
+  function normalizeHotkey(value) {
+    return typeof value === "string" ? value.toLowerCase() : "";
+  }
+  function isTextEntryElement(element) {
+    if (!(element instanceof HTMLElement)) {
+      return false;
+    }
+    const tagName = element.tagName;
+    return element.isContentEditable || tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT";
+  }
+  function handleChoiceHotkey(event) {
+    if (event.defaultPrevented) {
+      return;
+    }
+    if (event.metaKey || event.ctrlKey || event.altKey) {
+      return;
+    }
+    const key = normalizeHotkey(event.key);
+    if (!key) {
+      return;
+    }
+    if (isTextEntryElement(event.target)) {
+      return;
+    }
+    const entry = choiceHotkeys.get(key);
+    if (!entry) {
+      return;
+    }
+    const { button, handler } = entry;
+    if (button?.disabled) {
+      return;
+    }
+    event.preventDefault();
+    if (typeof button?.focus === "function") {
+      button.focus({ preventScroll: true });
+    }
+    handler?.();
+  }
+  function ensureChoiceHotkeyListener() {
+    if (hotkeyListenerAttached) {
+      return;
+    }
+    window.addEventListener("keydown", handleChoiceHotkey, { passive: false });
+    hotkeyListenerAttached = true;
+  }
+  function clearChoiceHotkeys() {
+    choiceHotkeys.clear();
+  }
+  function registerChoiceHotkey(key, button, handler) {
+    const normalized = normalizeHotkey(key);
+    if (!normalized || !button || typeof handler !== "function") {
+      return;
+    }
+    choiceHotkeys.set(normalized, { button, handler });
+  }
+  function handleMiniMapTravelRequest(targetId) {
+    if (!targetId || gameEnded) {
+      return;
+    }
+    if (targetId === worldState.location) {
+      return;
+    }
+    const currentLocation = locations[worldState.location];
+    if (!currentLocation?.connections?.includes(targetId)) {
+      return;
+    }
+    moveTo(targetId);
+  }
   function detachUiHandlers() {
     if (toggleStatsButton) {
       toggleStatsButton.removeEventListener("click", handleToggleStatsClick);
@@ -2217,7 +2677,7 @@ var GameApp = (() => {
       initializeStatusPanel(statusMetricsElement, worldState);
     }
     if (miniMapContainer) {
-      initializeMiniMap(miniMapContainer);
+      initializeMiniMap(miniMapContainer, { onRequestTravel: handleMiniMapTravelRequest });
     }
     if (journalButton && journalPanel) {
       initializeJournal(journalButton, journalPanel, () => buildJournalEntries());
@@ -2231,6 +2691,7 @@ var GameApp = (() => {
     if (restartButton) {
       restartButton.addEventListener("click", handleRestartClick);
     }
+    ensureChoiceHotkeyListener();
     resetGame();
   }
   function buildMetadata() {
@@ -2277,7 +2738,7 @@ var GameApp = (() => {
       trauma: 32,
       money: 13e5,
       debt: 82e6,
-      debtInterestRate: 0.018,
+      debtInterestRate: 45e-4,
       hoursSinceFatherCare: 1,
       flags: {
         triggeredEvents: {},
@@ -2298,7 +2759,12 @@ var GameApp = (() => {
         nextCollectorVisit: null,
         extraGigTaken: false,
         preparedMedicine: false,
-        collectorUltimatum: false
+        collectorUltimatum: false,
+        homeBusinessPlan: false,
+        homeBusinessLaunched: false,
+        homeBusinessMomentum: 0,
+        creatorChannel: false,
+        creatorMomentum: 0
       }
     };
   }
@@ -2347,6 +2813,14 @@ var GameApp = (() => {
       const loanDeadline = describeLoanDeadline();
       if (loanDeadline) {
         summaryParts.push(loanDeadline);
+      }
+      if (worldState.flags.homeBusinessLaunched) {
+        summaryParts.push("Pre-order tetangga aktif");
+      } else if (worldState.flags.homeBusinessPlan) {
+        summaryParts.push("Rencana usaha siap jalan");
+      }
+      if (worldState.flags.creatorChannel) {
+        summaryParts.push("Kanal dukungan aktif");
       }
       statusSummaryElement.textContent = summaryParts.join(" \u2022 ");
     }
@@ -2443,6 +2917,10 @@ var GameApp = (() => {
     const willpower = stats.willpower.value;
     const awareness = stats.awareness.value;
     const beauty = stats.beauty.value;
+    const networking = stats.networking?.value ?? 0;
+    const confidence = stats.confidence?.value ?? 0;
+    const ingenuity = stats.ingenuity?.value ?? 0;
+    const resilienceStat = stats.resilience?.value ?? 0;
     let freshForWork = false;
     let focusedWillpower = false;
     if (traits.has("physical") || traits.has("care")) {
@@ -2467,6 +2945,13 @@ var GameApp = (() => {
         adjustChange(statusChanges, "money", (value) => value * 1.1);
         notes.push("Energi cukup membuat tempo kerjamu lebih cepat.");
         freshForWork = true;
+      }
+      if (ingenuity >= 65) {
+        adjustChange(statusChanges, "money", (value) => value * 1.12);
+        notes.push("Kecakapan bisnismu membuat hasil kerja jadi lebih bernilai.");
+      } else if (ingenuity <= 30) {
+        adjustChange(statusChanges, "money", (value) => value * 0.9);
+        notes.push("Tanpa sistem yang matang, pendapatan kerjamu belum optimal.");
       }
     }
     if (traits.has("mental") || traits.has("planning") || traits.has("work")) {
@@ -2499,6 +2984,13 @@ var GameApp = (() => {
         adjustChange(statusChanges, "stress", (value) => value < 0 ? value * 1.2 : value);
         notes.push("Teknik fokus membantu pemulihan lebih dalam.");
       }
+      if (resilienceStat >= 65) {
+        adjustChange(statusChanges, "fatigue", (value) => value * 1.1);
+        notes.push("Resiliensi tinggi mempercepat pemulihan tubuhmu.");
+      } else if (resilienceStat <= 30) {
+        adjustChange(statusChanges, "fatigue", (value) => value * 0.85);
+        notes.push("Tubuh yang rapuh membuat pemulihan butuh waktu lebih lama.");
+      }
     }
     if (traits.has("social")) {
       if (beauty >= 60) {
@@ -2508,10 +3000,34 @@ var GameApp = (() => {
         adjustChange(statusChanges, "stress", (value) => value > 0 ? value * 1.1 : value * 0.85);
         notes.push("Rasa canggung sedikit mengurangi hasil interaksimu.");
       }
+      if (confidence >= 60) {
+        adjustChange(statusChanges, "money", (value) => typeof value === "number" ? value * 1.08 : value);
+        adjustChange(statusChanges, "stress", (value) => value < 0 ? value * 1.1 : value);
+        notes.push("Kepercayaan diri tinggi membuat ajakanmu lebih meyakinkan.");
+      } else if (confidence <= 30) {
+        adjustChange(statusChanges, "money", (value) => typeof value === "number" ? value * 0.92 : value);
+        notes.push("Keraguan diri membuatmu sulit menutup dukungan baru.");
+      }
     }
     if (traits.has("work") && freshForWork && focusedWillpower) {
       adjustChange(statusChanges, "money", (value) => value * 1.12);
       notes.push("Tubuh segar dan tekad menyala membuat hasil lemburmu melesat.");
+    }
+    if (traits.has("business")) {
+      if (ingenuity >= 60) {
+        adjustChange(statusChanges, "money", (value) => value * 1.15);
+        notes.push("Perhitungan bisnismu membuat setiap pesanan lebih menguntungkan.");
+      } else if (ingenuity <= 35) {
+        adjustChange(statusChanges, "money", (value) => value * 0.88);
+        notes.push("Tanpa strategi yang matang, marjin usahamu menipis.");
+      }
+      if (networking >= 60) {
+        adjustChange(statusChanges, "stress", (value) => value > 0 ? value * 0.85 : value);
+        notes.push("Jaringanmu membantu meredakan tekanan menghadapi pelanggan.");
+      } else if (networking <= 30) {
+        adjustChange(statusChanges, "stress", (value) => value > 0 ? value * 1.15 : value);
+        notes.push("Jangkauan sempit membuat usaha sampingan terasa melelahkan.");
+      }
     }
     return { baseEffects, statusChanges, notes };
   }
@@ -2662,11 +3178,49 @@ var GameApp = (() => {
     }
     return { narratives, changes: changeRecords };
   }
+  function attachHotkeyToChoice(entry, key) {
+    if (!entry || !key) {
+      return;
+    }
+    const { button, header, ariaLabel, onActivate } = entry;
+    if (!button || !header || typeof onActivate !== "function") {
+      return;
+    }
+    const badge = document.createElement("span");
+    badge.className = "choice-key";
+    badge.textContent = key.toUpperCase();
+    badge.setAttribute("aria-hidden", "true");
+    header.prepend(badge);
+    const baseLabel = (ariaLabel || button.getAttribute("aria-label") || button.textContent || "").trim();
+    const sentence = baseLabel.endsWith(".") ? baseLabel : baseLabel ? `${baseLabel}.` : "";
+    const hotkeyLabel = key.toUpperCase();
+    const ariaText = `${sentence ? `${sentence} ` : ""}Pintasan keyboard ${hotkeyLabel}.`.trim();
+    if (ariaText) {
+      button.setAttribute("aria-label", ariaText);
+    }
+    button.dataset.hotkey = hotkeyLabel;
+    registerChoiceHotkey(key, button, onActivate);
+  }
+  function applyHotkeysToEntries(entries, sequence) {
+    if (!Array.isArray(entries) || !Array.isArray(sequence)) {
+      return;
+    }
+    entries.forEach((entry, index) => {
+      const key = sequence[index];
+      if (!key) {
+        return;
+      }
+      attachHotkeyToChoice(entry, key);
+    });
+  }
   function renderChoicesForLocation(location) {
     if (!choicesElement) {
       return;
     }
     choicesElement.innerHTML = "";
+    clearChoiceHotkeys();
+    const actionEntries = [];
+    const travelEntries = [];
     const actionRefs = location.actions || [];
     actionRefs.forEach((actionRef) => {
       if (actionRef.type !== "action") return;
@@ -2678,9 +3232,13 @@ var GameApp = (() => {
       const button = document.createElement("button");
       button.className = "button";
       button.type = "button";
+      const header = document.createElement("div");
+      header.className = "choice-header";
       const label = document.createElement("span");
+      label.className = "choice-label";
       label.textContent = action.label;
-      button.appendChild(label);
+      header.appendChild(label);
+      button.appendChild(header);
       const outcomePreview = resolveActionOutcome(action, worldState);
       const preview = describeCombinedEffects(outcomePreview.baseEffects, outcomePreview.statusChanges);
       const durationText = formatDuration(action.time ?? 1);
@@ -2739,8 +3297,12 @@ var GameApp = (() => {
         note.textContent = outcomePreview.notes[0];
         button.appendChild(note);
       }
-      button.addEventListener("click", () => performAction(actionRef.id));
+      const onActivate = () => performAction(actionRef.id);
+      button.addEventListener("click", onActivate);
+      const ariaLabel = ariaParts.join(" ").trim();
+      button.setAttribute("aria-label", ariaLabel);
       choicesElement.appendChild(button);
+      actionEntries.push({ button, header, ariaLabel, onActivate });
     });
     const connections = location.connections || [];
     connections.forEach((target) => {
@@ -2749,13 +3311,22 @@ var GameApp = (() => {
       const button = document.createElement("button");
       button.className = "button secondary";
       button.type = "button";
+      const header = document.createElement("div");
+      header.className = "choice-header";
       const label = document.createElement("span");
+      label.className = "choice-label";
       label.textContent = `Pergi ke ${targetLocation.name}`;
-      button.appendChild(label);
-      button.setAttribute("aria-label", `Pergi ke ${targetLocation.name}`);
-      button.addEventListener("click", () => moveTo(target));
+      header.appendChild(label);
+      button.appendChild(header);
+      const ariaLabel = `Pergi ke ${targetLocation.name}.`;
+      button.setAttribute("aria-label", ariaLabel);
+      const onActivate = () => moveTo(target);
+      button.addEventListener("click", onActivate);
       choicesElement.appendChild(button);
+      travelEntries.push({ button, header, ariaLabel, onActivate });
     });
+    applyHotkeysToEntries(actionEntries, ACTION_HOTKEYS);
+    applyHotkeysToEntries(travelEntries, TRAVEL_HOTKEYS);
     if (!choicesElement.children.length) {
       const note = document.createElement("p");
       note.className = "subtitle";
@@ -2764,37 +3335,40 @@ var GameApp = (() => {
     }
   }
   function getInsights() {
-    const hints = [];
+    const urgent = [];
+    const strategy = [];
+    const financial = [];
+    const growth = [];
     if (worldState.fatherHealth <= 40) {
-      hints.push("Kesehatan Ayah melemah; ganti kompres atau beri obat untuk menstabilkannya.");
+      urgent.push("Kesehatan Ayah melemah; ganti kompres atau beri obat untuk menstabilkannya.");
     } else if (worldState.fatherHealth >= 80) {
-      hints.push("Ayah mulai bernapas lebih lega setelah perawatanmu yang konsisten.");
+      growth.push("Ayah mulai bernapas lebih lega setelah perawatanmu yang konsisten.");
     }
     if (worldState.stress >= 75) {
-      hints.push("Stres memuncak. Sisihkan waktu untuk menurunkan tekanan sebelum membuat keputusan.");
+      urgent.push("Stres memuncak. Sisihkan waktu untuk menurunkan tekanan sebelum membuat keputusan.");
     } else if (worldState.stress <= 30) {
-      hints.push("Stres terkendali; manfaatkan kejernihan pikiran untuk menyusun strategi.");
+      growth.push("Stres terkendali; manfaatkan kejernihan pikiran untuk menyusun strategi.");
     }
     if (worldState.fatigue >= 70) {
-      hints.push("Kelelahanmu ekstrem. Istirahat sejenak dapat mencegah tubuh tumbang.");
+      urgent.push("Kelelahanmu ekstrem. Istirahat sejenak dapat mencegah tubuh tumbang.");
     } else if (worldState.fatigue <= 25) {
-      hints.push("Energi tubuh cukup untuk menangani pekerjaan yang berat.");
+      growth.push("Energi tubuh cukup untuk menangani pekerjaan yang berat.");
     }
     if (worldState.trauma >= 60) {
-      hints.push("Trauma mendekati batas aman. Cari dukungan emosional untuk menjaga ketahanan mental.");
+      urgent.push("Trauma mendekati batas aman. Cari dukungan emosional untuk menjaga ketahanan mental.");
     } else if (worldState.trauma <= 20) {
-      hints.push("Ketahanan mentalmu stabil\u2014manfaatkan untuk negosiasi yang menegangkan.");
+      growth.push("Ketahanan mentalmu stabil\u2014manfaatkan untuk negosiasi yang menegangkan.");
     }
     if (worldState.money >= 5e6 && worldState.debt > 0) {
-      hints.push("Dana yang ada cukup untuk menawar cicilan darurat agar penagih mereda.");
+      financial.push("Dana yang ada cukup untuk menawar cicilan darurat agar penagih mereda.");
     }
     if (worldState.debt <= 4e7) {
-      hints.push("Utang mulai terpangkas signifikan. Jaga momentum pembayaranmu.");
+      financial.push("Utang mulai terpangkas signifikan. Jaga momentum pembayaranmu.");
     } else if (worldState.debt >= 9e7) {
-      hints.push("Bunga membuat utang membengkak. Pertimbangkan langkah agresif atau negosiasi baru.");
+      financial.push("Bunga membuat utang membengkak. Pertimbangkan langkah agresif atau negosiasi baru.");
     }
     if (worldState.flags.awaitingDina && !worldState.flags.dinaArrived) {
-      hints.push("Dina dalam perjalanan membawa bantuan; siapkan daftar kebutuhan yang ingin kamu sampaikan.");
+      financial.push("Dina dalam perjalanan membawa bantuan; siapkan daftar kebutuhan yang ingin kamu sampaikan.");
     }
     const dinaOutstanding = worldState.flags.dinaLoanOutstanding || 0;
     if (dinaOutstanding > 0 && worldState.flags.dinaArrived) {
@@ -2802,44 +3376,81 @@ var GameApp = (() => {
       if (due) {
         const hoursRemaining = (due.day - worldState.day) * 24 + (due.hour - worldState.hour);
         if (hoursRemaining <= 0) {
-          hints.push("Dina menunggu kabar pembayaran\u2014segera kirim cicilan agar kepercayaannya terjaga.");
+          financial.push("Dina menunggu kabar pembayaran\u2014segera kirim cicilan agar kepercayaannya terjaga.");
         } else if (hoursRemaining <= 24) {
-          hints.push("Jatuh tempo cicilan Dina tinggal kurang dari sehari. Sisihkan dana sekarang.");
+          financial.push("Jatuh tempo cicilan Dina tinggal kurang dari sehari. Sisihkan dana sekarang.");
         } else {
-          hints.push(`Sisa pinjaman Dina ${formatCurrency(dinaOutstanding)}. Atur cicilan sebelum tenggat berikutnya.`);
+          financial.push(`Sisa pinjaman Dina ${formatCurrency(dinaOutstanding)}. Atur cicilan sebelum tenggat berikutnya.`);
         }
       }
     } else if (worldState.flags.dinaArrived && dinaOutstanding === 0) {
-      hints.push("Pinjaman Dina sudah lunas\u2014kamu bebas fokus ke strategi jangka panjang.");
+      financial.push("Pinjaman Dina sudah lunas\u2014kamu bebas fokus ke strategi jangka panjang.");
     }
-    if (stats.awareness.value >= 65) {
-      hints.push("Kewaspadaanmu tinggi; kamu membaca pola gerak para penagih bahkan sebelum mereka mengetuk.");
-    } else if (stats.awareness.value <= 30) {
-      hints.push("Kewaspadaanmu menurun. Pertimbangkan untuk meninjau ulang informasi agar tidak kecolongan.");
+    const awarenessStat = stats.awareness.value;
+    if (awarenessStat >= 65) {
+      growth.push("Kewaspadaanmu tinggi; kamu membaca pola gerak para penagih bahkan sebelum mereka mengetuk.");
+    } else if (awarenessStat <= 30) {
+      growth.push("Kewaspadaanmu menurun. Pertimbangkan untuk meninjau ulang informasi agar tidak kecolongan.");
     }
-    if (stats.willpower.value >= 70) {
-      hints.push("Tekadmu kokoh; rasa takut tidak mudah menggoyahkan fokusmu.");
-    } else if (stats.willpower.value <= 25) {
-      hints.push("Tekadmu nyaris habis. Cari dukungan emosional sebelum membuat keputusan besar.");
+    const willpowerStat = stats.willpower.value;
+    if (willpowerStat >= 70) {
+      growth.push("Tekadmu kokoh; rasa takut tidak mudah menggoyahkan fokusmu.");
+    } else if (willpowerStat <= 25) {
+      growth.push("Tekadmu nyaris habis. Cari dukungan emosional sebelum membuat keputusan besar.");
     }
-    if (stats.promiscuity.value >= 55) {
-      hints.push("Jejaring sosialmu siap digerakkan kapan saja untuk mencari bantuan baru.");
-    } else if (stats.promiscuity.value <= 25) {
-      hints.push("Jejaring dukunganmu masih sempit; cobalah menghubungi orang tepercaya lainnya.");
+    const networkingStat = stats.networking.value;
+    if (networkingStat >= 55) {
+      growth.push("Jaringan sosialmu siap digerakkan kapan saja untuk mencari bantuan baru.");
+    } else if (networkingStat <= 25) {
+      growth.push("Jaringan dukunganmu masih sempit; cobalah menghubungi orang tepercaya lainnya.");
     }
     if (stats.deviancy.value >= 60) {
-      hints.push("Inovasi tinggi membuatmu berani mencoba langkah tidak umum untuk mematahkan tekanan.");
+      growth.push("Inovasi tinggi membuatmu berani mencoba langkah tidak umum untuk mematahkan tekanan.");
     }
     if (stats.purity.value <= 30) {
-      hints.push("Integritasmu mulai goyah. Pastikan kompromi tidak meninggalkan luka permanen.");
+      growth.push("Integritasmu mulai goyah. Pastikan kompromi tidak meninggalkan luka permanen.");
     }
-    if (stats.masochism.value >= 65) {
-      hints.push("Daya tahanmu kuat; kamu mampu berjaga tanpa tidur jika keadaan memaksa.");
+    const resilienceStat = stats.resilience.value;
+    if (resilienceStat >= 65) {
+      growth.push("Resiliensi tinggi membuatmu sanggup berjaga lebih lama tanpa kehilangan fokus.");
     }
-    if (stats.sadism.value >= 40) {
-      hints.push("Ketegasanmu tinggi. Gunakan dengan bijak agar tidak berubah menjadi ancaman balik.");
+    const assertivenessStat = stats.assertiveness.value;
+    if (assertivenessStat >= 40) {
+      growth.push("Ketegasanmu tinggi. Gunakan dengan bijak agar tidak berubah menjadi ancaman balik.");
     }
-    return hints.slice(0, 4);
+    const ingenuityStat = stats.ingenuity.value;
+    if (ingenuityStat >= 60) {
+      strategy.push("Kecakapan bisnismu cukup untuk mengembangkan sumber pendapatan di rumah.");
+    } else if (ingenuityStat <= 30) {
+      growth.push("Kecakapan bisnismu masih terbatas\u2014riset usaha rumahan bisa membuka peluang baru.");
+    }
+    if (!worldState.flags.homeBusinessPlan && ingenuityStat >= 45) {
+      strategy.push("Coba riset usaha rumahan; tetangga siap membantu pre-order jika kamu menawarkan solusi hangat.");
+    } else if (worldState.flags.homeBusinessPlan) {
+      if (!worldState.flags.homeBusinessLaunched) {
+        strategy.push("Rencana usaha sudah siap. Mulai buka pre-order agar pemasukan tambahan mengalir.");
+      } else {
+        const momentum = worldState.flags.homeBusinessMomentum || 0;
+        if (momentum >= 3) {
+          strategy.push("Pre-order tetangga mulai stabil\u2014atur jadwal agar bebanmu tidak menumpuk.");
+        } else {
+          strategy.push("Jaga ritme pre-order agar usaha sampinganmu terus menambah kas keluarga.");
+        }
+      }
+    }
+    const confidenceStat = stats.confidence.value;
+    if (!worldState.flags.creatorChannel && confidenceStat >= 50) {
+      strategy.push("Modal percaya dirimu cukup untuk mulai rekam konten dukungan dan bangun audiens.");
+    } else if (worldState.flags.creatorChannel) {
+      const creatorMomentum = worldState.flags.creatorMomentum || 0;
+      if (creatorMomentum >= 3) {
+        strategy.push("Audiensmu mulai loyal. Jadwalkan siaran rutin agar donasi tetap mengalir.");
+      } else {
+        strategy.push("Update singkat di kanal dukungan bisa memantik tips baru tanpa menambah stres.");
+      }
+    }
+    const combined = [...urgent, ...strategy, ...financial, ...growth];
+    return combined.slice(0, 4);
   }
   function renderScene(narratives = [], changeRecords = []) {
     updateStatusSummary();
@@ -2885,6 +3496,7 @@ var GameApp = (() => {
     }
     if (gameEnded) {
       if (choicesElement) {
+        clearChoiceHotkeys();
         choicesElement.innerHTML = "";
         const endingLabel = document.createElement("p");
         endingLabel.className = "subtitle";
