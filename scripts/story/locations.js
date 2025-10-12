@@ -19,6 +19,8 @@ export const locations = {
       { type: "action", id: "hubungiDina" },
       { type: "action", id: "laporKeDina" },
       { type: "action", id: "cicilKeDina" },
+      { type: "action", id: "rekamKontenMalam" },
+      { type: "action", id: "siaranDukungan" },
       { type: "action", id: "latihanNapas" },
       { type: "action", id: "bayarDebtSebagian" },
       { type: "action", id: "tulisJurnal" },
@@ -98,6 +100,8 @@ export const locations = {
     actions: [
       { type: "action", id: "susunRencana" },
       { type: "action", id: "kirimRencana" },
+      { type: "action", id: "risetUsahaRumahan" },
+      { type: "action", id: "kelolaPreOrder" },
       { type: "action", id: "kerjaLembur" },
       { type: "action", id: "tulisJurnal" },
     ],

@@ -54,24 +54,24 @@ export const baseStats = {
     colorStrong: "#ec4899",
     colorSoft: "rgba(244, 114, 182, 0.22)",
   },
-  promiscuity: {
-    displayName: "Promiscuity",
-    alias: "Keluwesan Relasi",
+  networking: {
+    displayName: "Networking",
+    alias: "Jaringan Sosial",
     description:
-      "Kemampuan menjalin jaringan dukungan lintas komunitas tanpa ragu menjelaskan kebutuhanmu.",
+      "Kemampuan menjalin dukungan lintas komunitas dan menjaga kepercayaan mereka.",
     max: 100,
-    initial: 35,
+    initial: 36,
     color: "#34d399",
     colorStrong: "#10b981",
     colorSoft: "rgba(52, 211, 153, 0.22)",
   },
-  exhibitionism: {
-    displayName: "Exhibitionism",
-    alias: "Keberanian Tampil",
+  confidence: {
+    displayName: "Confidence",
+    alias: "Kepercayaan Diri",
     description:
-      "Kesiapanmu berbicara terbuka soal situasi keluarga kepada orang lain atau otoritas.",
+      "Keberanian berbicara terbuka soal situasi keluarga dan menegosiasikan bantuan yang kamu butuhkan.",
     max: 100,
-    initial: 32,
+    initial: 42,
     color: "#60a5fa",
     colorStrong: "#3b82f6",
     colorSoft: "rgba(96, 165, 250, 0.22)",
@@ -87,24 +87,35 @@ export const baseStats = {
     colorStrong: "#f43f5e",
     colorSoft: "rgba(251, 113, 133, 0.22)",
   },
-  masochism: {
-    displayName: "Masochism",
-    alias: "Daya Tahan Tekanan",
+  ingenuity: {
+    displayName: "Ingenuity",
+    alias: "Kecakapan Bisnis",
     description:
-      "Kemampuan menerima lelah, takut, dan malu sementara demi visi yang lebih besar untuk keluarga.",
+      "Kepekaan melihat peluang usaha, menaksir risiko, dan menumbuhkan sumber pendapatan baru.",
+    max: 100,
+    initial: 38,
+    color: "#14b8a6",
+    colorStrong: "#0f766e",
+    colorSoft: "rgba(20, 184, 166, 0.22)",
+  },
+  resilience: {
+    displayName: "Resilience",
+    alias: "Resiliensi",
+    description:
+      "Kemampuan bertahan di bawah tekanan fisik dan mental tanpa kehilangan arah.",
     max: 100,
     initial: 44,
     color: "#f59e0b",
     colorStrong: "#d97706",
     colorSoft: "rgba(245, 158, 11, 0.22)",
   },
-  sadism: {
-    displayName: "Sadism",
-    alias: "Ketegasan Menghadapi",
+  assertiveness: {
+    displayName: "Assertiveness",
+    alias: "Ketegasan",
     description:
-      "Kemauan menekan balik dan menetapkan batas tegas terhadap pihak yang menindas.",
+      "Ketahanan saat menetapkan batas, menagih komitmen, dan menghadapi intimidasi.",
     max: 100,
-    initial: 20,
+    initial: 30,
     color: "#a3e635",
     colorStrong: "#84cc16",
     colorSoft: "rgba(163, 230, 53, 0.22)",
@@ -117,11 +128,12 @@ export const statsOrder = [
   "physique",
   "willpower",
   "beauty",
-  "promiscuity",
-  "exhibitionism",
+  "networking",
+  "confidence",
   "deviancy",
-  "masochism",
-  "sadism",
+  "ingenuity",
+  "resilience",
+  "assertiveness",
 ];
 
 export const tierLabels = ["", "Pemula", "Terkondisi", "Tangkas", "Berdaya", "Visioner"];

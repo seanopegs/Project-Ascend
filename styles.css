@@ -29,6 +29,9 @@
   --mini-map-cell-border: rgba(255, 231, 179, 0.12);
   --mini-map-cell-active-border: rgba(251, 191, 36, 0.55);
   --mini-map-cell-active-shadow: 0 16px 28px -18px rgba(249, 115, 22, 0.6);
+  --mini-map-cell-adjacent-border: rgba(56, 189, 248, 0.6);
+  --mini-map-cell-adjacent-shadow: 0 20px 32px -22px rgba(56, 189, 248, 0.75);
+  --mini-map-cell-adjacent-glow: linear-gradient(135deg, rgba(56, 189, 248, 0.16), rgba(2, 132, 199, 0.22));
   --mini-map-label-color: rgba(249, 250, 252, 0.9);
   --choice-note-bg: rgba(24, 22, 32, 0.85);
   --journal-modal-bg: linear-gradient(160deg, rgba(36, 36, 48, 0.98) 0%, rgba(24, 24, 32, 0.94) 100%);
@@ -73,72 +76,75 @@
 
 :root[data-theme="light"] {
   --color-scheme: light;
-  --bg: #f7f5ef;
-  --bg-soft: rgba(255, 255, 255, 0.92);
-  --surface: rgba(255, 255, 255, 0.82);
-  --surface-strong: rgba(255, 255, 255, 0.9);
-  --surface-border: rgba(214, 180, 92, 0.28);
-  --text-primary: #1f2933;
-  --text-muted: rgba(55, 65, 81, 0.74);
-  --accent: #d97706;
-  --accent-strong: #b45309;
-  --accent-soft: rgba(217, 119, 6, 0.18);
+  --bg: #ece7dc;
+  --bg-soft: rgba(243, 238, 226, 0.96);
+  --surface: rgba(250, 244, 232, 0.96);
+  --surface-strong: rgba(247, 238, 223, 0.98);
+  --surface-border: rgba(149, 120, 55, 0.42);
+  --text-primary: #2f2a1f;
+  --text-muted: rgba(63, 54, 38, 0.72);
+  --accent: #c26a07;
+  --accent-strong: #9a5206;
+  --accent-soft: rgba(194, 106, 7, 0.22);
   --positive: #16a34a;
   --negative: #dc2626;
-  --shadow: rgba(148, 132, 92, 0.3);
-  --app-background: radial-gradient(circle at 5% 10%, rgba(217, 119, 6, 0.12), transparent 50%),
-    radial-gradient(circle at 90% 5%, rgba(245, 158, 11, 0.1), transparent 55%),
-    linear-gradient(160deg, #fdf8f1 0%, #f4efe6 45%, #f8f5ee 100%);
-  --app-shell-bg: rgba(255, 255, 255, 0.9);
-  --app-shell-border: rgba(214, 180, 92, 0.32);
-  --app-shell-shadow: 0 28px 60px -30px rgba(148, 132, 92, 0.45);
-  --mini-map-background: radial-gradient(circle at 30% 20%, rgba(217, 119, 6, 0.18), transparent 65%),
-    rgba(255, 248, 235, 0.92);
-  --mini-map-border: rgba(214, 180, 92, 0.45);
-  --mini-map-cell-bg: rgba(255, 255, 255, 0.92);
-  --mini-map-cell-border: rgba(214, 180, 92, 0.35);
-  --mini-map-cell-active-border: rgba(217, 119, 6, 0.55);
-  --mini-map-cell-active-shadow: 0 16px 28px -18px rgba(217, 119, 6, 0.35);
-  --mini-map-label-color: rgba(55, 65, 81, 0.9);
-  --choice-note-bg: rgba(255, 248, 235, 0.95);
-  --journal-modal-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 245, 233, 0.95) 100%);
-  --journal-modal-border: rgba(214, 180, 92, 0.35);
-  --journal-header-bg: linear-gradient(180deg, rgba(255, 247, 227, 0.95) 0%, rgba(250, 242, 217, 0.9) 100%);
-  --journal-subtitle-color: rgba(178, 124, 33, 0.78);
-  --journal-title-color: rgba(120, 70, 20, 0.92);
-  --journal-close-bg: rgba(255, 248, 235, 0.9);
-  --journal-close-color: rgba(120, 70, 20, 0.85);
-  --journal-close-hover-bg: rgba(217, 119, 6, 0.18);
-  --journal-close-hover-color: rgba(89, 49, 6, 0.95);
-  --journal-close-shadow: 0 10px 18px rgba(214, 180, 92, 0.35);
-  --journal-entry-bg: rgba(255, 250, 239, 0.96);
-  --journal-entry-border: rgba(214, 180, 92, 0.35);
-  --journal-entry-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 12px 24px rgba(214, 180, 92, 0.25);
-  --journal-entry-text: rgba(89, 49, 6, 0.88);
-  --journal-modal-shadow: 0 24px 60px rgba(214, 180, 92, 0.35);
-  --stats-modal-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 245, 233, 0.95) 100%);
-  --stats-modal-border: rgba(214, 180, 92, 0.3);
-  --stats-header-bg: linear-gradient(180deg, rgba(255, 247, 227, 0.95) 0%, rgba(250, 242, 217, 0.9) 100%);
-  --stats-title-color: rgba(120, 70, 20, 0.9);
-  --stats-subtitle-color: rgba(178, 124, 33, 0.7);
-  --stats-close-bg: rgba(255, 248, 235, 0.9);
-  --stats-close-color: rgba(120, 70, 20, 0.85);
-  --stats-close-hover-bg: rgba(217, 119, 6, 0.2);
-  --stats-close-hover-color: rgba(89, 49, 6, 0.95);
-  --stats-close-shadow: 0 12px 24px rgba(214, 180, 92, 0.3);
-  --stats-modal-shadow: 0 22px 55px rgba(214, 180, 92, 0.3);
-  --modal-scrim: rgba(39, 29, 12, 0.42);
-  --modal-scrim-strong: rgba(89, 68, 30, 0.5);
-  --choice-hint-bg: rgba(255, 250, 240, 0.94);
-  --choice-hint-border: rgba(214, 180, 92, 0.38);
-  --choice-hint-color: rgba(120, 70, 20, 0.9);
-  --stat-chip-shadow: rgba(214, 180, 92, 0.35);
-  --theme-toggle-bg: rgba(217, 119, 6, 0.08);
-  --theme-toggle-bg-hover: rgba(217, 119, 6, 0.16);
-  --theme-toggle-border: rgba(217, 119, 6, 0.35);
-  --theme-toggle-border-hover: rgba(217, 119, 6, 0.55);
-  --theme-toggle-color: rgba(89, 49, 6, 0.9);
-  --theme-toggle-color-hover: rgba(89, 49, 6, 1);
+  --shadow: rgba(126, 102, 56, 0.35);
+  --app-background: radial-gradient(circle at 5% 10%, rgba(194, 106, 7, 0.12), transparent 48%),
+    radial-gradient(circle at 90% 5%, rgba(217, 119, 6, 0.1), transparent 55%),
+    linear-gradient(160deg, #f3edde 0%, #ece5d6 45%, #f4eddf 100%);
+  --app-shell-bg: rgba(250, 244, 232, 0.94);
+  --app-shell-border: rgba(149, 120, 55, 0.55);
+  --app-shell-shadow: 0 32px 72px -36px rgba(126, 102, 56, 0.55);
+  --mini-map-background: radial-gradient(circle at 30% 20%, rgba(56, 149, 201, 0.16), transparent 65%),
+    rgba(250, 244, 232, 0.94);
+  --mini-map-border: rgba(149, 120, 55, 0.55);
+  --mini-map-cell-bg: rgba(252, 246, 233, 0.96);
+  --mini-map-cell-border: rgba(149, 120, 55, 0.4);
+  --mini-map-cell-active-border: rgba(194, 106, 7, 0.65);
+  --mini-map-cell-active-shadow: 0 18px 32px -18px rgba(154, 82, 6, 0.42);
+  --mini-map-cell-adjacent-border: rgba(37, 99, 235, 0.55);
+  --mini-map-cell-adjacent-shadow: 0 20px 32px -22px rgba(37, 99, 235, 0.5);
+  --mini-map-cell-adjacent-glow: linear-gradient(135deg, rgba(37, 99, 235, 0.16), rgba(29, 78, 216, 0.18));
+  --mini-map-label-color: rgba(63, 54, 38, 0.9);
+  --choice-note-bg: rgba(248, 240, 225, 0.96);
+  --journal-modal-bg: linear-gradient(160deg, rgba(252, 246, 233, 0.98) 0%, rgba(244, 235, 216, 0.95) 100%);
+  --journal-modal-border: rgba(149, 120, 55, 0.45);
+  --journal-header-bg: linear-gradient(180deg, rgba(247, 235, 209, 0.96) 0%, rgba(240, 227, 198, 0.94) 100%);
+  --journal-subtitle-color: rgba(134, 88, 29, 0.78);
+  --journal-title-color: rgba(104, 63, 15, 0.92);
+  --journal-close-bg: rgba(248, 240, 225, 0.96);
+  --journal-close-color: rgba(104, 63, 15, 0.9);
+  --journal-close-hover-bg: rgba(194, 106, 7, 0.22);
+  --journal-close-hover-color: rgba(69, 41, 8, 0.95);
+  --journal-close-shadow: 0 12px 24px rgba(126, 102, 56, 0.42);
+  --journal-entry-bg: rgba(250, 244, 232, 0.97);
+  --journal-entry-border: rgba(149, 120, 55, 0.45);
+  --journal-entry-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 14px 26px rgba(126, 102, 56, 0.28);
+  --journal-entry-text: rgba(69, 41, 8, 0.92);
+  --journal-modal-shadow: 0 26px 64px rgba(126, 102, 56, 0.4);
+  --stats-modal-bg: linear-gradient(160deg, rgba(252, 246, 233, 0.98) 0%, rgba(244, 235, 216, 0.95) 100%);
+  --stats-modal-border: rgba(149, 120, 55, 0.4);
+  --stats-header-bg: linear-gradient(180deg, rgba(247, 235, 209, 0.96) 0%, rgba(240, 227, 198, 0.94) 100%);
+  --stats-title-color: rgba(104, 63, 15, 0.92);
+  --stats-subtitle-color: rgba(134, 88, 29, 0.72);
+  --stats-close-bg: rgba(248, 240, 225, 0.96);
+  --stats-close-color: rgba(104, 63, 15, 0.9);
+  --stats-close-hover-bg: rgba(194, 106, 7, 0.24);
+  --stats-close-hover-color: rgba(69, 41, 8, 0.96);
+  --stats-close-shadow: 0 14px 28px rgba(126, 102, 56, 0.32);
+  --stats-modal-shadow: 0 24px 60px rgba(126, 102, 56, 0.36);
+  --modal-scrim: rgba(87, 71, 42, 0.42);
+  --modal-scrim-strong: rgba(87, 71, 42, 0.52);
+  --choice-hint-bg: rgba(250, 244, 232, 0.96);
+  --choice-hint-border: rgba(149, 120, 55, 0.45);
+  --choice-hint-color: rgba(104, 63, 15, 0.92);
+  --stat-chip-shadow: rgba(149, 120, 55, 0.45);
+  --theme-toggle-bg: rgba(194, 106, 7, 0.12);
+  --theme-toggle-bg-hover: rgba(194, 106, 7, 0.2);
+  --theme-toggle-border: rgba(194, 106, 7, 0.45);
+  --theme-toggle-border-hover: rgba(194, 106, 7, 0.65);
+  --theme-toggle-color: rgba(104, 63, 15, 0.9);
+  --theme-toggle-color-hover: rgba(69, 41, 8, 0.96);
 }
 
 * {
@@ -151,9 +157,10 @@ body {
   font-family: "Manrope", "Segoe UI", system-ui, sans-serif;
   background: var(--app-background);
   color: var(--text-primary);
-  padding: 3rem 1.5rem 4rem;
+  padding: 2.5rem 1rem 3rem;
   display: flex;
   justify-content: center;
+  align-items: stretch;
 }
 
 html.modal-open {
@@ -167,16 +174,17 @@ body.modal-open {
 }
 
 .app-shell {
-  width: min(1200px, 100%);
+  width: min(1180px, 100%);
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1.75rem;
   background: var(--app-shell-bg);
   backdrop-filter: blur(20px);
   border: 1px solid var(--app-shell-border);
   border-radius: 28px;
-  padding: 2.5rem 2.25rem 2.75rem;
+  padding: 2.2rem 2rem 2.5rem;
   box-shadow: var(--app-shell-shadow);
+  min-height: calc(100vh - 4.5rem);
 }
 
 .app-header {
@@ -263,15 +271,21 @@ body.modal-open {
 
 .app-layout {
   display: grid;
-  grid-template-columns: minmax(280px, 340px) 1fr;
-  gap: 2.5rem;
-  align-items: start;
+  grid-template-columns: minmax(300px, 340px) minmax(0, 1fr);
+  gap: 1.75rem 2rem;
+  align-items: stretch;
 }
 
 .app-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 1.75rem;
+  gap: 1.5rem;
+  position: sticky;
+  top: 1.5rem;
+  max-height: calc(100vh - 5rem);
+  overflow-y: auto;
+  padding-right: 0.25rem;
+  scrollbar-gutter: stable;
 }
 
 .section-heading h2 {
@@ -307,7 +321,7 @@ body.modal-open {
 
 .status-metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.85rem;
 }
 
@@ -424,6 +438,11 @@ body.modal-open {
   transition: border-color 200ms ease, transform 200ms ease, box-shadow 200ms ease;
   grid-row: var(--row);
   grid-column: var(--col);
+  appearance: none;
+  font: inherit;
+  color: var(--mini-map-label-color);
+  cursor: default;
+  background-clip: padding-box;
 }
 
 .mini-map-cell::before {
@@ -431,7 +450,7 @@ body.modal-open {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.12), rgba(249, 115, 22, 0.1));
+  background: transparent;
   opacity: 0;
   transition: opacity 200ms ease;
 }
@@ -440,10 +459,38 @@ body.modal-open {
   border-color: var(--mini-map-cell-active-border);
   box-shadow: var(--mini-map-cell-active-shadow);
   transform: translateY(-2px);
+  cursor: default;
 }
 
 .mini-map-cell.active::before {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.16), rgba(249, 115, 22, 0.18));
   opacity: 1;
+}
+
+.mini-map-cell.adjacent {
+  border-color: var(--mini-map-cell-adjacent-border);
+  box-shadow: var(--mini-map-cell-adjacent-shadow);
+  transform: translateY(-1px);
+}
+
+.mini-map-cell.adjacent::before {
+  background: var(--mini-map-cell-adjacent-glow);
+  opacity: 1;
+}
+
+.mini-map-cell:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+.mini-map-cell[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.mini-map-cell:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent-strong) 70%, white 15%);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-soft) 40%, transparent 60%);
 }
 
 .mini-map-label {
@@ -638,9 +685,9 @@ body.modal-open {
 }
 
 .app-main {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
 }
 
 .story {
@@ -1385,7 +1432,8 @@ body.modal-open {
 }
 
 .restart {
-  align-self: center;
+  justify-self: start;
+  align-self: start;
   padding: 0.75rem 1.8rem;
   border-radius: 999px;
   border: 1px solid rgba(255, 231, 179, 0.35);
@@ -1404,6 +1452,37 @@ body.modal-open {
   transform: translateY(-1px);
 }
 
+@media (min-width: 1100px) {
+  .app-main {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    gap: 1.5rem 1.4rem;
+  }
+
+  .story,
+  .feedback {
+    grid-column: 1 / 2;
+  }
+
+  .choices {
+    grid-column: 2 / 3;
+    align-self: start;
+  }
+
+  .feedback:empty {
+    display: none;
+  }
+
+  .restart {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 860px) {
+  .status-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 1024px) {
   body {
     padding: 2.5rem 1.25rem 3rem;
@@ -1415,6 +1494,10 @@ body.modal-open {
 
   .app-sidebar {
     order: 2;
+    position: static;
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
   }
 }
 

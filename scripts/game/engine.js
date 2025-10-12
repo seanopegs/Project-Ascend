@@ -109,6 +109,20 @@ function registerChoiceHotkey(key, button, handler) {
   choiceHotkeys.set(normalized, { button, handler });
 }
 
+function handleMiniMapTravelRequest(targetId) {
+  if (!targetId || gameEnded) {
+    return;
+  }
+  if (targetId === worldState.location) {
+    return;
+  }
+  const currentLocation = locations[worldState.location];
+  if (!currentLocation?.connections?.includes(targetId)) {
+    return;
+  }
+  moveTo(targetId);
+}
+
 function detachUiHandlers() {
   if (toggleStatsButton) {
     toggleStatsButton.removeEventListener("click", handleToggleStatsClick);
@@ -175,7 +189,7 @@ export function initializeGame() {
   }
 
   if (miniMapContainer) {
-    initializeMiniMap(miniMapContainer);
+    initializeMiniMap(miniMapContainer, { onRequestTravel: handleMiniMapTravelRequest });
   }
 
   if (journalButton && journalPanel) {
@@ -243,7 +257,7 @@ function createInitialWorldState() {
     trauma: 32,
     money: 1_300_000,
     debt: 82_000_000,
-    debtInterestRate: 0.018,
+    debtInterestRate: 0.0045,
     hoursSinceFatherCare: 1,
     flags: {
       triggeredEvents: {},
@@ -265,6 +279,11 @@ function createInitialWorldState() {
       extraGigTaken: false,
       preparedMedicine: false,
       collectorUltimatum: false,
+      homeBusinessPlan: false,
+      homeBusinessLaunched: false,
+      homeBusinessMomentum: 0,
+      creatorChannel: false,
+      creatorMomentum: 0,
     },
   };
 }
@@ -318,6 +337,14 @@ function updateStatusSummary() {
     const loanDeadline = describeLoanDeadline();
     if (loanDeadline) {
       summaryParts.push(loanDeadline);
+    }
+    if (worldState.flags.homeBusinessLaunched) {
+      summaryParts.push("Pre-order tetangga aktif");
+    } else if (worldState.flags.homeBusinessPlan) {
+      summaryParts.push("Rencana usaha siap jalan");
+    }
+    if (worldState.flags.creatorChannel) {
+      summaryParts.push("Kanal dukungan aktif");
     }
     statusSummaryElement.textContent = summaryParts.join(" • ");
   }
@@ -425,6 +452,10 @@ function resolveActionOutcome(action, state) {
   const willpower = stats.willpower.value;
   const awareness = stats.awareness.value;
   const beauty = stats.beauty.value;
+  const networking = stats.networking?.value ?? 0;
+  const confidence = stats.confidence?.value ?? 0;
+  const ingenuity = stats.ingenuity?.value ?? 0;
+  const resilienceStat = stats.resilience?.value ?? 0;
   let freshForWork = false;
   let focusedWillpower = false;
 
@@ -451,6 +482,14 @@ function resolveActionOutcome(action, state) {
       adjustChange(statusChanges, "money", (value) => value * 1.1);
       notes.push("Energi cukup membuat tempo kerjamu lebih cepat.");
       freshForWork = true;
+    }
+
+    if (ingenuity >= 65) {
+      adjustChange(statusChanges, "money", (value) => value * 1.12);
+      notes.push("Kecakapan bisnismu membuat hasil kerja jadi lebih bernilai.");
+    } else if (ingenuity <= 30) {
+      adjustChange(statusChanges, "money", (value) => value * 0.9);
+      notes.push("Tanpa sistem yang matang, pendapatan kerjamu belum optimal.");
     }
   }
 
@@ -486,6 +525,14 @@ function resolveActionOutcome(action, state) {
       adjustChange(statusChanges, "stress", (value) => (value < 0 ? value * 1.2 : value));
       notes.push("Teknik fokus membantu pemulihan lebih dalam.");
     }
+
+    if (resilienceStat >= 65) {
+      adjustChange(statusChanges, "fatigue", (value) => value * 1.1);
+      notes.push("Resiliensi tinggi mempercepat pemulihan tubuhmu.");
+    } else if (resilienceStat <= 30) {
+      adjustChange(statusChanges, "fatigue", (value) => value * 0.85);
+      notes.push("Tubuh yang rapuh membuat pemulihan butuh waktu lebih lama.");
+    }
   }
 
   if (traits.has("social")) {
@@ -496,11 +543,38 @@ function resolveActionOutcome(action, state) {
       adjustChange(statusChanges, "stress", (value) => (value > 0 ? value * 1.1 : value * 0.85));
       notes.push("Rasa canggung sedikit mengurangi hasil interaksimu.");
     }
+
+    if (confidence >= 60) {
+      adjustChange(statusChanges, "money", (value) => (typeof value === "number" ? value * 1.08 : value));
+      adjustChange(statusChanges, "stress", (value) => (value < 0 ? value * 1.1 : value));
+      notes.push("Kepercayaan diri tinggi membuat ajakanmu lebih meyakinkan.");
+    } else if (confidence <= 30) {
+      adjustChange(statusChanges, "money", (value) => (typeof value === "number" ? value * 0.92 : value));
+      notes.push("Keraguan diri membuatmu sulit menutup dukungan baru.");
+    }
   }
 
   if (traits.has("work") && freshForWork && focusedWillpower) {
     adjustChange(statusChanges, "money", (value) => value * 1.12);
     notes.push("Tubuh segar dan tekad menyala membuat hasil lemburmu melesat.");
+  }
+
+  if (traits.has("business")) {
+    if (ingenuity >= 60) {
+      adjustChange(statusChanges, "money", (value) => value * 1.15);
+      notes.push("Perhitungan bisnismu membuat setiap pesanan lebih menguntungkan.");
+    } else if (ingenuity <= 35) {
+      adjustChange(statusChanges, "money", (value) => value * 0.88);
+      notes.push("Tanpa strategi yang matang, marjin usahamu menipis.");
+    }
+
+    if (networking >= 60) {
+      adjustChange(statusChanges, "stress", (value) => (value > 0 ? value * 0.85 : value));
+      notes.push("Jaringanmu membantu meredakan tekanan menghadapi pelanggan.");
+    } else if (networking <= 30) {
+      adjustChange(statusChanges, "stress", (value) => (value > 0 ? value * 1.15 : value));
+      notes.push("Jangkauan sempit membuat usaha sampingan terasa melelahkan.");
+    }
   }
 
   return { baseEffects, statusChanges, notes };
@@ -852,44 +926,47 @@ function renderChoicesForLocation(location) {
 }
 
 function getInsights() {
-  const hints = [];
+  const urgent = [];
+  const strategy = [];
+  const financial = [];
+  const growth = [];
 
   if (worldState.fatherHealth <= 40) {
-    hints.push("Kesehatan Ayah melemah; ganti kompres atau beri obat untuk menstabilkannya.");
+    urgent.push("Kesehatan Ayah melemah; ganti kompres atau beri obat untuk menstabilkannya.");
   } else if (worldState.fatherHealth >= 80) {
-    hints.push("Ayah mulai bernapas lebih lega setelah perawatanmu yang konsisten.");
+    growth.push("Ayah mulai bernapas lebih lega setelah perawatanmu yang konsisten.");
   }
 
   if (worldState.stress >= 75) {
-    hints.push("Stres memuncak. Sisihkan waktu untuk menurunkan tekanan sebelum membuat keputusan.");
+    urgent.push("Stres memuncak. Sisihkan waktu untuk menurunkan tekanan sebelum membuat keputusan.");
   } else if (worldState.stress <= 30) {
-    hints.push("Stres terkendali; manfaatkan kejernihan pikiran untuk menyusun strategi.");
+    growth.push("Stres terkendali; manfaatkan kejernihan pikiran untuk menyusun strategi.");
   }
 
   if (worldState.fatigue >= 70) {
-    hints.push("Kelelahanmu ekstrem. Istirahat sejenak dapat mencegah tubuh tumbang.");
+    urgent.push("Kelelahanmu ekstrem. Istirahat sejenak dapat mencegah tubuh tumbang.");
   } else if (worldState.fatigue <= 25) {
-    hints.push("Energi tubuh cukup untuk menangani pekerjaan yang berat.");
+    growth.push("Energi tubuh cukup untuk menangani pekerjaan yang berat.");
   }
 
   if (worldState.trauma >= 60) {
-    hints.push("Trauma mendekati batas aman. Cari dukungan emosional untuk menjaga ketahanan mental.");
+    urgent.push("Trauma mendekati batas aman. Cari dukungan emosional untuk menjaga ketahanan mental.");
   } else if (worldState.trauma <= 20) {
-    hints.push("Ketahanan mentalmu stabil—manfaatkan untuk negosiasi yang menegangkan.");
+    growth.push("Ketahanan mentalmu stabil—manfaatkan untuk negosiasi yang menegangkan.");
   }
 
   if (worldState.money >= 5_000_000 && worldState.debt > 0) {
-    hints.push("Dana yang ada cukup untuk menawar cicilan darurat agar penagih mereda.");
+    financial.push("Dana yang ada cukup untuk menawar cicilan darurat agar penagih mereda.");
   }
 
   if (worldState.debt <= 40_000_000) {
-    hints.push("Utang mulai terpangkas signifikan. Jaga momentum pembayaranmu.");
+    financial.push("Utang mulai terpangkas signifikan. Jaga momentum pembayaranmu.");
   } else if (worldState.debt >= 90_000_000) {
-    hints.push("Bunga membuat utang membengkak. Pertimbangkan langkah agresif atau negosiasi baru.");
+    financial.push("Bunga membuat utang membengkak. Pertimbangkan langkah agresif atau negosiasi baru.");
   }
 
   if (worldState.flags.awaitingDina && !worldState.flags.dinaArrived) {
-    hints.push("Dina dalam perjalanan membawa bantuan; siapkan daftar kebutuhan yang ingin kamu sampaikan.");
+    financial.push("Dina dalam perjalanan membawa bantuan; siapkan daftar kebutuhan yang ingin kamu sampaikan.");
   }
 
   const dinaOutstanding = worldState.flags.dinaLoanOutstanding || 0;
@@ -898,52 +975,92 @@ function getInsights() {
     if (due) {
       const hoursRemaining = (due.day - worldState.day) * 24 + (due.hour - worldState.hour);
       if (hoursRemaining <= 0) {
-        hints.push("Dina menunggu kabar pembayaran—segera kirim cicilan agar kepercayaannya terjaga.");
+        financial.push("Dina menunggu kabar pembayaran—segera kirim cicilan agar kepercayaannya terjaga.");
       } else if (hoursRemaining <= 24) {
-        hints.push("Jatuh tempo cicilan Dina tinggal kurang dari sehari. Sisihkan dana sekarang.");
+        financial.push("Jatuh tempo cicilan Dina tinggal kurang dari sehari. Sisihkan dana sekarang.");
       } else {
-        hints.push(`Sisa pinjaman Dina ${formatCurrency(dinaOutstanding)}. Atur cicilan sebelum tenggat berikutnya.`);
+        financial.push(`Sisa pinjaman Dina ${formatCurrency(dinaOutstanding)}. Atur cicilan sebelum tenggat berikutnya.`);
       }
     }
   } else if (worldState.flags.dinaArrived && dinaOutstanding === 0) {
-    hints.push("Pinjaman Dina sudah lunas—kamu bebas fokus ke strategi jangka panjang.");
+    financial.push("Pinjaman Dina sudah lunas—kamu bebas fokus ke strategi jangka panjang.");
   }
 
-  if (stats.awareness.value >= 65) {
-    hints.push("Kewaspadaanmu tinggi; kamu membaca pola gerak para penagih bahkan sebelum mereka mengetuk.");
-  } else if (stats.awareness.value <= 30) {
-    hints.push("Kewaspadaanmu menurun. Pertimbangkan untuk meninjau ulang informasi agar tidak kecolongan.");
+  const awarenessStat = stats.awareness.value;
+  if (awarenessStat >= 65) {
+    growth.push("Kewaspadaanmu tinggi; kamu membaca pola gerak para penagih bahkan sebelum mereka mengetuk.");
+  } else if (awarenessStat <= 30) {
+    growth.push("Kewaspadaanmu menurun. Pertimbangkan untuk meninjau ulang informasi agar tidak kecolongan.");
   }
 
-  if (stats.willpower.value >= 70) {
-    hints.push("Tekadmu kokoh; rasa takut tidak mudah menggoyahkan fokusmu.");
-  } else if (stats.willpower.value <= 25) {
-    hints.push("Tekadmu nyaris habis. Cari dukungan emosional sebelum membuat keputusan besar.");
+  const willpowerStat = stats.willpower.value;
+  if (willpowerStat >= 70) {
+    growth.push("Tekadmu kokoh; rasa takut tidak mudah menggoyahkan fokusmu.");
+  } else if (willpowerStat <= 25) {
+    growth.push("Tekadmu nyaris habis. Cari dukungan emosional sebelum membuat keputusan besar.");
   }
 
-  if (stats.promiscuity.value >= 55) {
-    hints.push("Jejaring sosialmu siap digerakkan kapan saja untuk mencari bantuan baru.");
-  } else if (stats.promiscuity.value <= 25) {
-    hints.push("Jejaring dukunganmu masih sempit; cobalah menghubungi orang tepercaya lainnya.");
+  const networkingStat = stats.networking.value;
+  if (networkingStat >= 55) {
+    growth.push("Jaringan sosialmu siap digerakkan kapan saja untuk mencari bantuan baru.");
+  } else if (networkingStat <= 25) {
+    growth.push("Jaringan dukunganmu masih sempit; cobalah menghubungi orang tepercaya lainnya.");
   }
 
   if (stats.deviancy.value >= 60) {
-    hints.push("Inovasi tinggi membuatmu berani mencoba langkah tidak umum untuk mematahkan tekanan.");
+    growth.push("Inovasi tinggi membuatmu berani mencoba langkah tidak umum untuk mematahkan tekanan.");
   }
 
   if (stats.purity.value <= 30) {
-    hints.push("Integritasmu mulai goyah. Pastikan kompromi tidak meninggalkan luka permanen.");
+    growth.push("Integritasmu mulai goyah. Pastikan kompromi tidak meninggalkan luka permanen.");
   }
 
-  if (stats.masochism.value >= 65) {
-    hints.push("Daya tahanmu kuat; kamu mampu berjaga tanpa tidur jika keadaan memaksa.");
+  const resilienceStat = stats.resilience.value;
+  if (resilienceStat >= 65) {
+    growth.push("Resiliensi tinggi membuatmu sanggup berjaga lebih lama tanpa kehilangan fokus.");
   }
 
-  if (stats.sadism.value >= 40) {
-    hints.push("Ketegasanmu tinggi. Gunakan dengan bijak agar tidak berubah menjadi ancaman balik.");
+  const assertivenessStat = stats.assertiveness.value;
+  if (assertivenessStat >= 40) {
+    growth.push("Ketegasanmu tinggi. Gunakan dengan bijak agar tidak berubah menjadi ancaman balik.");
   }
 
-  return hints.slice(0, 4);
+  const ingenuityStat = stats.ingenuity.value;
+  if (ingenuityStat >= 60) {
+    strategy.push("Kecakapan bisnismu cukup untuk mengembangkan sumber pendapatan di rumah.");
+  } else if (ingenuityStat <= 30) {
+    growth.push("Kecakapan bisnismu masih terbatas—riset usaha rumahan bisa membuka peluang baru.");
+  }
+
+  if (!worldState.flags.homeBusinessPlan && ingenuityStat >= 45) {
+    strategy.push("Coba riset usaha rumahan; tetangga siap membantu pre-order jika kamu menawarkan solusi hangat.");
+  } else if (worldState.flags.homeBusinessPlan) {
+    if (!worldState.flags.homeBusinessLaunched) {
+      strategy.push("Rencana usaha sudah siap. Mulai buka pre-order agar pemasukan tambahan mengalir.");
+    } else {
+      const momentum = worldState.flags.homeBusinessMomentum || 0;
+      if (momentum >= 3) {
+        strategy.push("Pre-order tetangga mulai stabil—atur jadwal agar bebanmu tidak menumpuk.");
+      } else {
+        strategy.push("Jaga ritme pre-order agar usaha sampinganmu terus menambah kas keluarga.");
+      }
+    }
+  }
+
+  const confidenceStat = stats.confidence.value;
+  if (!worldState.flags.creatorChannel && confidenceStat >= 50) {
+    strategy.push("Modal percaya dirimu cukup untuk mulai rekam konten dukungan dan bangun audiens.");
+  } else if (worldState.flags.creatorChannel) {
+    const creatorMomentum = worldState.flags.creatorMomentum || 0;
+    if (creatorMomentum >= 3) {
+      strategy.push("Audiensmu mulai loyal. Jadwalkan siaran rutin agar donasi tetap mengalir.");
+    } else {
+      strategy.push("Update singkat di kanal dukungan bisa memantik tips baru tanpa menambah stres.");
+    }
+  }
+
+  const combined = [...urgent, ...strategy, ...financial, ...growth];
+  return combined.slice(0, 4);
 }
 
 function renderScene(narratives = [], changeRecords = []) {
