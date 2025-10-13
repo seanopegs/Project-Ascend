@@ -433,7 +433,23 @@ var GameApp = (() => {
       condition: (state) => state.money >= 2e6 && state.debt > 0,
       baseEffects: { purity: 1, willpower: 1 },
       statusChanges: { money: -2e6, debt: -2e6, stress: -4 },
-      narrative: () => "Kamu membuka aplikasi bank dan mentransfer dua juta sebagai penegasan niat baik kepada debt collector."
+      narrative: () => "Kamu membuka aplikasi bank dan mentransfer dua juta sebagai penegasan niat baik kepada debt collector.",
+      after: (state) => {
+        const amount = 2e6;
+        state.flags.totalCollectorPayments = (state.flags.totalCollectorPayments || 0) + amount;
+        state.flags.lastCollectorPayment = {
+          day: state.day,
+          hour: state.hour,
+          minute: state.minute
+        };
+        state.flags.safeWithSupport = true;
+        state.flags.collectorUltimatum = false;
+        state.flags.nextCollectorVisit = {
+          day: state.day + 1,
+          hour: 10
+        };
+        return "Bukti transfer tersimpan. Setidaknya mereka tahu kamu tidak kabur.";
+      }
     },
     periksaAyah: {
       label: "Periksa kondisi Ayah",
@@ -641,6 +657,20 @@ var GameApp = (() => {
       baseEffects: { purity: 1, beauty: 1 },
       statusChanges: { trauma: -4, stress: -3 },
       narrative: () => "Kamu menuangkan rasa takut dan harapan dalam jurnal. Kata-kata itu menegaskan kembali alasanmu bertahan."
+    },
+    gadaiPerhiasan: {
+      label: "Gadai cincin peninggalan Ibu",
+      time: 1.5,
+      traits: ["financial", "social"],
+      condition: (state) => !state.flags.pawnedJewelry,
+      baseEffects: { assertiveness: 1, willpower: -1, deviancy: 1 },
+      statusChanges: { money: 35e5, stress: 5, trauma: 4 },
+      narrative: () => "Dengan tangan gemetar kamu memotret cincin emas Ibu dan menghubungi kurir pegadaian online yang siap menjemput malam ini.",
+      after: (state) => {
+        state.flags.pawnedJewelry = true;
+        state.flags.safeWithSupport = false;
+        return "Dana segar masuk, tapi kamu berjanji menebusnya kembali suatu hari nanti.";
+      }
     }
   };
 
@@ -668,6 +698,7 @@ var GameApp = (() => {
         { type: "action", id: "siaranDukungan" },
         { type: "action", id: "latihanNapas" },
         { type: "action", id: "bayarDebtSebagian" },
+        { type: "action", id: "gadaiPerhiasan" },
         { type: "action", id: "tulisJurnal" }
       ],
       connections: ["kamarAyah", "dapur", "halaman", "ruangKerja"]
@@ -752,6 +783,12 @@ var GameApp = (() => {
   };
 
   // scripts/story/events.js
+  function getTotalCollectorPayments(state) {
+    return state?.flags?.totalCollectorPayments || 0;
+  }
+  function hasPaidMinimum(state, amount) {
+    return getTotalCollectorPayments(state) >= amount;
+  }
   var scheduledEvents = [
     {
       id: "debtCollectorKnock",
@@ -912,6 +949,76 @@ var GameApp = (() => {
         state.flags.nextCollectorVisit = { day: state.day, hour: Math.min(state.hour + 3, 22) };
         return "Segera kunci rumah atau cari saksi. Mereka bisa kembali kapan saja malam ini.";
       }
+    },
+    {
+      id: "collectorMorningPressure",
+      condition: (state) => state.flags.debtCollectorKnock && !state.flags.collectorMorningPressure && state.day >= 2 && state.hour >= 9,
+      narrative: () => "Bel pintu dibunyikan bertubi-tubi. Dua penagih memaksa video call, menuntut jadwal pembayaran konkret sebelum siang.",
+      baseEffects: { assertiveness: -1, resilience: -1 },
+      statusChanges: { stress: 9, trauma: 3, fatherHealth: -2 },
+      after: (state) => {
+        state.flags.collectorMorningPressure = true;
+        state.flags.safeWithSupport = false;
+        state.flags.nextCollectorVisit = { day: state.day, hour: Math.min(state.hour + 9, 21) };
+        return "Mereka meminta bukti transfer minimal tiga juta sebelum matahari terbenam.";
+      }
+    },
+    {
+      id: "collectorPenaltyDay2",
+      condition: (state) => state.day >= 2 && state.hour >= 12 && !state.flags.collectorPenaltyDay2 && !hasPaidMinimum(state, 2e6),
+      narrative: () => "Notifikasi rekening berbunyi. Koperasi menambahkan denda keterlambatan dan ancaman kunjungan lapangan tambahan.",
+      statusChanges: { debt: 12e5, stress: 8, trauma: 2 },
+      after: (state) => {
+        state.flags.collectorPenaltyDay2 = true;
+        state.flags.safeWithSupport = false;
+        state.flags.nextCollectorVisit = { day: state.day, hour: Math.min(state.hour + 6, 23) };
+        return "Tanpa cicilan hari ini, dendanya akan berlipat ganda besok.";
+      }
+    },
+    {
+      id: "collectorLegalThreat",
+      condition: (state) => state.day >= 3 && state.hour >= 9 && !state.flags.collectorLegalThreat && !hasPaidMinimum(state, 5e6),
+      narrative: () => "Amplop merah diselipkan di bawah pintu. Isi surat mengabarkan rencana penarikan aset dan intimidasi hukum.",
+      baseEffects: { willpower: -1, assertiveness: 1 },
+      statusChanges: { stress: 10, trauma: 5 },
+      after: (state) => {
+        state.flags.collectorLegalThreat = true;
+        state.flags.collectorUltimatum = true;
+        state.flags.safeWithSupport = false;
+        state.flags.nextCollectorVisit = { day: state.day, hour: Math.min(state.hour + 5, 21) };
+        return "Untuk meredakan surat ancaman itu, kolektor meminta bukti transfer minimal lima juta.";
+      }
+    },
+    {
+      id: "collectorAccountFreeze",
+      condition: (state) => state.day >= 3 && state.hour >= 18 && !state.flags.collectorAccountFreeze && !hasPaidMinimum(state, 7e6),
+      narrative: () => "SMS bank masuk: sebagian saldo rekeningmu dibekukan atas permintaan koperasi. Mereka menahan dana sampai ada cicilan baru.",
+      statusChanges: (state) => {
+        const withheld = Math.min(state.money, 1e6);
+        return { money: -withheld, stress: 10, trauma: 6 };
+      },
+      after: (state) => {
+        state.flags.collectorAccountFreeze = true;
+        state.flags.safeWithSupport = false;
+        state.flags.nextCollectorVisit = { day: state.day + 1, hour: 9 };
+        return "Akses rekening utama terhambat. Kamu harus mencari sumber uang lain secepatnya.";
+      }
+    },
+    {
+      id: "collectorAssetSeizure",
+      condition: (state) => state.day >= 4 && state.hour >= 9 && !state.flags.collectorAssetSeizure && !hasPaidMinimum(state, 1e7),
+      narrative: () => "Mobil bak terbuka berhenti di depan rumah. Mereka mengancam mengangkut barang elektronik jika tak ada transfer besar hari ini.",
+      statusChanges: (state) => {
+        const cashLoss = Math.min(state.money, 2e6);
+        return { money: -cashLoss, debt: 35e5, stress: 14, trauma: 8, fatherHealth: -6 };
+      },
+      after: (state) => {
+        state.flags.collectorAssetSeizure = true;
+        state.flags.collectorEscalationStage = Math.max(state.flags.collectorEscalationStage || 0, 3);
+        state.flags.safeWithSupport = false;
+        state.flags.nextCollectorVisit = { day: state.day, hour: Math.min(state.hour + 3, 20) };
+        return "Ini peringatan terakhir sebelum mereka membawa paksa barang dari rumah.";
+      }
     }
   ];
   var randomEvents = [
@@ -946,6 +1053,39 @@ var GameApp = (() => {
       statusChanges: { money: 65e4, stress: 2, fatigue: 2 },
       after: (state) => {
         state.flags.extraGigTaken = true;
+      }
+    },
+    {
+      id: "cousinVoiceNote",
+      condition: (state) => state.location === "ruangKeluarga" && state.hour >= 7,
+      chance: () => 0.2,
+      narrative: () => "Voice note dari sepupumu masuk. Ia menawarkan meminjamkan motor untuk mengantar pesanan atau kabur jika situasi memburu.",
+      baseEffects: { networking: 1, confidence: 1 },
+      statusChanges: { stress: -2, fatigue: -1 },
+      after: (state) => {
+        state.flags.safeWithSupport = true;
+      }
+    },
+    {
+      id: "volunteerMedic",
+      condition: (state) => state.location === "kamarAyah" && state.flags.debtCollectorKnock,
+      chance: () => 0.18,
+      narrative: () => "Relawan medis dari puskesmas menelepon menawarkan kunjungan pagi jika kamu bisa menutup biaya transport kecil.",
+      baseEffects: { purity: 1, resilience: 1 },
+      statusChanges: { fatherHealth: 5, money: -15e4, stress: -3 },
+      after: (state) => {
+        state.flags.safeWithSupport = true;
+      }
+    },
+    {
+      id: "legalClinic",
+      condition: (state) => state.location === "ruangKerja" && state.flags.hasChronology,
+      chance: () => 0.22,
+      narrative: () => "DM Instagram masuk dari klinik hukum kampus. Mereka bersedia memberi draft surat keberatan jika kamu mengirim kronologi. ",
+      baseEffects: { assertiveness: 1, networking: 1 },
+      statusChanges: { stress: -4, trauma: -2 },
+      after: (state) => {
+        state.flags.safeWithSupport = true;
       }
     }
   ];
@@ -2711,6 +2851,8 @@ var GameApp = (() => {
   var miniMapContainer;
   var themeToggleButton;
   var statsPanelVisible = false;
+  var cycleBadgeElement;
+  var strategyBadgeElement;
   var ACTION_HOTKEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
   var TRAVEL_HOTKEYS = Array.from("abcdefghijklmnopqrstuvwxyz");
   var choiceHotkeys = /* @__PURE__ */ new Map();
@@ -2736,6 +2878,30 @@ var GameApp = (() => {
       return "Senja Ini";
     }
     return "Malam Ini";
+  }
+  function describeRiskBadge() {
+    if (worldState.flags.collectorAssetSeizure) {
+      return "Ancaman Penyitaan";
+    }
+    if (worldState.flags.collectorAccountFreeze) {
+      return "Akun Dibekukan";
+    }
+    if (worldState.flags.collectorLegalThreat || worldState.flags.collectorUltimatum) {
+      return "Ultimatum Kolektor";
+    }
+    if (worldState.flags.debtCollectorKnock) {
+      return "Siaga Penagih";
+    }
+    return "Taktik Bertahan";
+  }
+  function updateHeaderBadges() {
+    if (cycleBadgeElement) {
+      const segment = describeDaySegment(worldState.hour);
+      cycleBadgeElement.textContent = `Hari ${worldState.day} \u2022 ${segment}`;
+    }
+    if (strategyBadgeElement) {
+      strategyBadgeElement.textContent = describeRiskBadge();
+    }
   }
   function updateStatusHeading() {
     if (!statusHeadingTitleElement) {
@@ -2852,6 +3018,8 @@ var GameApp = (() => {
     journalPanel = document.getElementById("journalPanel");
     miniMapContainer = document.getElementById("miniMap");
     themeToggleButton = document.getElementById("themeToggle");
+    cycleBadgeElement = document.querySelector(".header-meta .badge:not(.accent)");
+    strategyBadgeElement = document.querySelector(".header-meta .badge.accent");
     if (toggleStatsButton && statsElement) {
       toggleStatsButton.setAttribute("aria-controls", statsElement.id);
       statsPanelVisible = !statsElement.hasAttribute("hidden");
@@ -2881,6 +3049,7 @@ var GameApp = (() => {
       restartButton.addEventListener("click", handleRestartClick);
     }
     ensureChoiceHotkeyListener();
+    updateHeaderBadges();
     resetGame();
   }
   function buildMetadata() {
@@ -2957,7 +3126,15 @@ var GameApp = (() => {
         creatorMomentum: 0,
         sleepDeprivationStage: 0,
         careEscalationStage: 0,
-        collectorEscalationStage: 0
+        collectorEscalationStage: 0,
+        totalCollectorPayments: 0,
+        lastCollectorPayment: null,
+        collectorMorningPressure: false,
+        collectorPenaltyDay2: false,
+        collectorLegalThreat: false,
+        collectorAccountFreeze: false,
+        collectorAssetSeizure: false,
+        pawnedJewelry: false
       }
     };
   }
@@ -2991,6 +3168,7 @@ var GameApp = (() => {
   }
   function updateStatusSummary() {
     updateStatusHeading();
+    updateHeaderBadges();
     const location = locations[worldState.location];
     const clock = formatTime(worldState.hour, worldState.minute);
     const calendar = formatCalendarDate(worldState);
@@ -3009,6 +3187,14 @@ var GameApp = (() => {
       const loanDeadline = describeLoanDeadline();
       if (loanDeadline) {
         summaryParts.push(loanDeadline);
+      }
+      if (worldState.flags.debtCollectorKnock) {
+        const paid = worldState.flags.totalCollectorPayments || 0;
+        if (paid > 0) {
+          summaryParts.push(`Pembayaran kolektor: ${formatCurrency(paid)}`);
+        } else {
+          summaryParts.push("Belum ada pembayaran kolektor");
+        }
       }
       if (worldState.flags.homeBusinessLaunched) {
         summaryParts.push("Pre-order tetangga aktif");
@@ -3342,11 +3528,13 @@ var GameApp = (() => {
       if (narrative) {
         narratives.push(narrative);
       }
-      if (event.baseEffects) {
-        changeRecords = changeRecords.concat(applyEffects(event.baseEffects));
+      const baseEffects = typeof event.baseEffects === "function" ? event.baseEffects(worldState) : event.baseEffects;
+      if (baseEffects) {
+        changeRecords = changeRecords.concat(applyEffects(baseEffects));
       }
-      if (event.statusChanges) {
-        changeRecords = changeRecords.concat(applyStatusChanges(event.statusChanges));
+      const statusChanges = typeof event.statusChanges === "function" ? event.statusChanges(worldState) : event.statusChanges;
+      if (statusChanges) {
+        changeRecords = changeRecords.concat(applyStatusChanges(statusChanges));
       }
       const extra = event.after?.(worldState);
       if (extra) {
@@ -3363,11 +3551,13 @@ var GameApp = (() => {
       if (narrative) {
         narratives.push(narrative);
       }
-      if (event.baseEffects) {
-        changeRecords = changeRecords.concat(applyEffects(event.baseEffects));
+      const baseEffects = typeof event.baseEffects === "function" ? event.baseEffects(worldState) : event.baseEffects;
+      if (baseEffects) {
+        changeRecords = changeRecords.concat(applyEffects(baseEffects));
       }
-      if (event.statusChanges) {
-        changeRecords = changeRecords.concat(applyStatusChanges(event.statusChanges));
+      const statusChanges = typeof event.statusChanges === "function" ? event.statusChanges(worldState) : event.statusChanges;
+      if (statusChanges) {
+        changeRecords = changeRecords.concat(applyStatusChanges(statusChanges));
       }
       const extra = event.after?.(worldState);
       if (extra) {
@@ -3855,11 +4045,47 @@ var GameApp = (() => {
   }
   function buildJournalEntries() {
     const entries = [];
+    const totalPaid = worldState.flags.totalCollectorPayments || 0;
     if (!worldState.flags.debtCollectorKnock) {
       entries.push({
         title: "Ketukan Penagih",
         time: "Malam ini pukul 23.00",
         description: "Penagih akan kembali memastikan tagihanmu. Siapkan strategi bicara atau dana dadakan agar tekanan tidak meningkat."
+      });
+    }
+    if (worldState.flags.debtCollectorKnock && !worldState.flags.collectorMorningPressure) {
+      entries.push({
+        title: "Tekanan Pagi Kolektor",
+        time: worldState.day === 1 ? "Besok pukul 09.00" : "Segera setelah pukul 09.00",
+        description: "Mereka menuntut bukti transfer minimal Rp3.000.000 sebelum petang."
+      });
+    }
+    if (worldState.flags.debtCollectorKnock && !worldState.flags.collectorPenaltyDay2 && worldState.day <= 2 && totalPaid < 2e6) {
+      entries.push({
+        title: "Denda Hari Kedua",
+        time: "Hari 2 pukul 12.00",
+        description: "Tanpa transfer minimal Rp2.000.000, koperasi menambahkan denda dan mengirim tim tambahan ke rumahmu."
+      });
+    }
+    if (worldState.flags.debtCollectorKnock && !worldState.flags.collectorLegalThreat && worldState.day <= 3 && totalPaid < 5e6) {
+      entries.push({
+        title: "Ancaman Hukum",
+        time: "Hari 3 pukul 09.00",
+        description: "Surat peringatan akan datang kecuali kamu bisa menunjukkan pembayaran minimal Rp5.000.000."
+      });
+    }
+    if (worldState.flags.debtCollectorKnock && !worldState.flags.collectorAccountFreeze && worldState.day <= 3 && totalPaid < 7e6) {
+      entries.push({
+        title: "Risiko Rekening Dibekukan",
+        time: "Hari 3 menjelang malam",
+        description: "Jika tabunganmu kosong dari cicilan, koperasi bisa menahan saldo rekening hingga ada transfer Rp7.000.000."
+      });
+    }
+    if (worldState.flags.debtCollectorKnock && !worldState.flags.collectorAssetSeizure && worldState.day <= 4 && totalPaid < 1e7) {
+      entries.push({
+        title: "Penyitaan Barang",
+        time: "Hari 4 pukul 09.00",
+        description: "Tanpa pembayaran besar, mereka siap membawa barang elektronik dan menambah utang sebesar Rp3.500.000."
       });
     }
     if (worldState.flags.nextCollectorVisit) {
