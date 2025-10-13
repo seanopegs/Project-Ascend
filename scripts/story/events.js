@@ -1,3 +1,11 @@
+function getTotalCollectorPayments(state) {
+  return state?.flags?.totalCollectorPayments || 0;
+}
+
+function hasPaidMinimum(state, amount) {
+  return getTotalCollectorPayments(state) >= amount;
+}
+
 export const scheduledEvents = [
   {
     id: "debtCollectorKnock",
@@ -174,6 +182,86 @@ export const scheduledEvents = [
       return "Segera kunci rumah atau cari saksi. Mereka bisa kembali kapan saja malam ini.";
     },
   },
+  {
+    id: "collectorMorningPressure",
+    condition: (state) =>
+      state.flags.debtCollectorKnock && !state.flags.collectorMorningPressure && state.day >= 2 && state.hour >= 9,
+    narrative: () =>
+      "Bel pintu dibunyikan bertubi-tubi. Dua penagih memaksa video call, menuntut jadwal pembayaran konkret sebelum siang.",
+    baseEffects: { assertiveness: -1, resilience: -1 },
+    statusChanges: { stress: 9, trauma: 3, fatherHealth: -2 },
+    after: (state) => {
+      state.flags.collectorMorningPressure = true;
+      state.flags.safeWithSupport = false;
+      state.flags.nextCollectorVisit = { day: state.day, hour: Math.min(state.hour + 9, 21) };
+      return "Mereka meminta bukti transfer minimal tiga juta sebelum matahari terbenam.";
+    },
+  },
+  {
+    id: "collectorPenaltyDay2",
+    condition: (state) =>
+      state.day >= 2 && state.hour >= 12 && !state.flags.collectorPenaltyDay2 && !hasPaidMinimum(state, 2_000_000),
+    narrative: () =>
+      "Notifikasi rekening berbunyi. Koperasi menambahkan denda keterlambatan dan ancaman kunjungan lapangan tambahan.",
+    statusChanges: { debt: 1_200_000, stress: 8, trauma: 2 },
+    after: (state) => {
+      state.flags.collectorPenaltyDay2 = true;
+      state.flags.safeWithSupport = false;
+      state.flags.nextCollectorVisit = { day: state.day, hour: Math.min(state.hour + 6, 23) };
+      return "Tanpa cicilan hari ini, dendanya akan berlipat ganda besok.";
+    },
+  },
+  {
+    id: "collectorLegalThreat",
+    condition: (state) =>
+      state.day >= 3 && state.hour >= 9 && !state.flags.collectorLegalThreat && !hasPaidMinimum(state, 5_000_000),
+    narrative: () =>
+      "Amplop merah diselipkan di bawah pintu. Isi surat mengabarkan rencana penarikan aset dan intimidasi hukum.",
+    baseEffects: { willpower: -1, assertiveness: 1 },
+    statusChanges: { stress: 10, trauma: 5 },
+    after: (state) => {
+      state.flags.collectorLegalThreat = true;
+      state.flags.collectorUltimatum = true;
+      state.flags.safeWithSupport = false;
+      state.flags.nextCollectorVisit = { day: state.day, hour: Math.min(state.hour + 5, 21) };
+      return "Untuk meredakan surat ancaman itu, kolektor meminta bukti transfer minimal lima juta.";
+    },
+  },
+  {
+    id: "collectorAccountFreeze",
+    condition: (state) =>
+      state.day >= 3 && state.hour >= 18 && !state.flags.collectorAccountFreeze && !hasPaidMinimum(state, 7_000_000),
+    narrative: () =>
+      "SMS bank masuk: sebagian saldo rekeningmu dibekukan atas permintaan koperasi. Mereka menahan dana sampai ada cicilan baru.",
+    statusChanges: (state) => {
+      const withheld = Math.min(state.money, 1_000_000);
+      return { money: -withheld, stress: 10, trauma: 6 };
+    },
+    after: (state) => {
+      state.flags.collectorAccountFreeze = true;
+      state.flags.safeWithSupport = false;
+      state.flags.nextCollectorVisit = { day: state.day + 1, hour: 9 };
+      return "Akses rekening utama terhambat. Kamu harus mencari sumber uang lain secepatnya.";
+    },
+  },
+  {
+    id: "collectorAssetSeizure",
+    condition: (state) =>
+      state.day >= 4 && state.hour >= 9 && !state.flags.collectorAssetSeizure && !hasPaidMinimum(state, 10_000_000),
+    narrative: () =>
+      "Mobil bak terbuka berhenti di depan rumah. Mereka mengancam mengangkut barang elektronik jika tak ada transfer besar hari ini.",
+    statusChanges: (state) => {
+      const cashLoss = Math.min(state.money, 2_000_000);
+      return { money: -cashLoss, debt: 3_500_000, stress: 14, trauma: 8, fatherHealth: -6 };
+    },
+    after: (state) => {
+      state.flags.collectorAssetSeizure = true;
+      state.flags.collectorEscalationStage = Math.max(state.flags.collectorEscalationStage || 0, 3);
+      state.flags.safeWithSupport = false;
+      state.flags.nextCollectorVisit = { day: state.day, hour: Math.min(state.hour + 3, 20) };
+      return "Ini peringatan terakhir sebelum mereka membawa paksa barang dari rumah.";
+    },
+  },
 ];
 
 export const randomEvents = [
@@ -211,6 +299,42 @@ export const randomEvents = [
     statusChanges: { money: 650_000, stress: 2, fatigue: 2 },
     after: (state) => {
       state.flags.extraGigTaken = true;
+    },
+  },
+  {
+    id: "cousinVoiceNote",
+    condition: (state) => state.location === "ruangKeluarga" && state.hour >= 7,
+    chance: () => 0.2,
+    narrative: () =>
+      "Voice note dari sepupumu masuk. Ia menawarkan meminjamkan motor untuk mengantar pesanan atau kabur jika situasi memburu.",
+    baseEffects: { networking: 1, confidence: 1 },
+    statusChanges: { stress: -2, fatigue: -1 },
+    after: (state) => {
+      state.flags.safeWithSupport = true;
+    },
+  },
+  {
+    id: "volunteerMedic",
+    condition: (state) => state.location === "kamarAyah" && state.flags.debtCollectorKnock,
+    chance: () => 0.18,
+    narrative: () =>
+      "Relawan medis dari puskesmas menelepon menawarkan kunjungan pagi jika kamu bisa menutup biaya transport kecil.",
+    baseEffects: { purity: 1, resilience: 1 },
+    statusChanges: { fatherHealth: 5, money: -150_000, stress: -3 },
+    after: (state) => {
+      state.flags.safeWithSupport = true;
+    },
+  },
+  {
+    id: "legalClinic",
+    condition: (state) => state.location === "ruangKerja" && state.flags.hasChronology,
+    chance: () => 0.22,
+    narrative: () =>
+      "DM Instagram masuk dari klinik hukum kampus. Mereka bersedia memberi draft surat keberatan jika kamu mengirim kronologi. ",
+    baseEffects: { assertiveness: 1, networking: 1 },
+    statusChanges: { stress: -4, trauma: -2 },
+    after: (state) => {
+      state.flags.safeWithSupport = true;
     },
   },
 ];
