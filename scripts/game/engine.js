@@ -26,6 +26,7 @@ let showInsightsInFeedback = true;
 
 let statsElement;
 let statusSummaryElement;
+let statusHeadingTitleElement;
 let statusMetricsElement;
 let storyElement;
 let feedbackElement;
@@ -45,6 +46,34 @@ let hotkeyListenerAttached = false;
 
 function normalizeHotkey(value) {
   return typeof value === 'string' ? value.toLowerCase() : '';
+}
+
+function describeDaySegment(hour) {
+  const normalized = ((Number(hour) % 24) + 24) % 24;
+  if (normalized < 4) {
+    return 'Dini Hari';
+  }
+  if (normalized < 11) {
+    return 'Pagi Ini';
+  }
+  if (normalized < 15) {
+    return 'Siang Ini';
+  }
+  if (normalized < 18) {
+    return 'Sore Ini';
+  }
+  if (normalized < 21) {
+    return 'Senja Ini';
+  }
+  return 'Malam Ini';
+}
+
+function updateStatusHeading() {
+  if (!statusHeadingTitleElement) {
+    return;
+  }
+  const segment = describeDaySegment(worldState.hour);
+  statusHeadingTitleElement.textContent = `Kondisi ${segment}`;
 }
 
 function isTextEntryElement(element) {
@@ -160,6 +189,7 @@ export function initializeGame() {
 
   statsElement = document.getElementById("stats");
   statusSummaryElement = document.getElementById("statusSummary");
+  statusHeadingTitleElement = document.getElementById("statusHeadingTitle");
   statusMetricsElement = document.getElementById("statusMetrics");
   storyElement = document.getElementById("story");
   feedbackElement = document.getElementById("feedback");
@@ -259,6 +289,7 @@ function createInitialWorldState() {
     debt: 82_000_000,
     debtInterestRate: 0.0045,
     hoursSinceFatherCare: 1,
+    hoursSinceRest: 6,
     flags: {
       triggeredEvents: {},
       reviewedBills: false,
@@ -284,6 +315,9 @@ function createInitialWorldState() {
       homeBusinessMomentum: 0,
       creatorChannel: false,
       creatorMomentum: 0,
+      sleepDeprivationStage: 0,
+      careEscalationStage: 0,
+      collectorEscalationStage: 0,
     },
   };
 }
@@ -321,12 +355,15 @@ function resetGame() {
 }
 
 function updateStatusSummary() {
+  updateStatusHeading();
   const location = locations[worldState.location];
   const clock = formatTime(worldState.hour, worldState.minute);
   const calendar = formatCalendarDate(worldState);
+  const segment = describeDaySegment(worldState.hour);
   if (statusSummaryElement) {
     const summaryParts = [
       `Hari ${worldState.day} (${calendar})`,
+      segment,
       clock,
       location?.name ?? "Lokasi tidak dikenal",
     ];
@@ -677,6 +714,18 @@ function advanceTime(hours = 1) {
     if (worldState.hoursSinceFatherCare >= 4) {
       aggregate.fatherHealth =
         (aggregate.fatherHealth || 0) + applyStatusDelta("fatherHealth", -1.5 * portion);
+    }
+
+    worldState.hoursSinceRest += portion;
+    if (worldState.hoursSinceRest >= 24) {
+      const fatiguePenalty = 1.2 + Math.max(0, worldState.hoursSinceRest - 24) * 0.05;
+      aggregate.fatigue =
+        (aggregate.fatigue || 0) + applyStatusDelta("fatigue", fatiguePenalty * portion);
+    }
+    if (worldState.hoursSinceRest >= 36) {
+      aggregate.stress =
+        (aggregate.stress || 0) + applyStatusDelta("stress", 0.8 * portion);
+      aggregate.trauma = (aggregate.trauma || 0) + applyStatusDelta("trauma", 0.3 * portion);
     }
 
     if (worldState.stress >= 80) {
@@ -1092,7 +1141,10 @@ function renderScene(narratives = [], changeRecords = []) {
   const paragraphs = [];
   const clock = formatTime(worldState.hour, worldState.minute);
   const calendar = formatCalendarDate(worldState);
-  paragraphs.push(`Hari ${worldState.day} (${calendar}), ${clock} di ${location?.name ?? "???"}.`);
+  const segment = describeDaySegment(worldState.hour).toLowerCase();
+  paragraphs.push(
+    `Hari ${worldState.day} (${calendar}), ${clock} (${segment}) di ${location?.name ?? "???"}.`,
+  );
   if (location) {
     const description = location.description?.(worldState);
     if (description) {
@@ -1242,6 +1294,15 @@ function checkEndConditions() {
       narrative:
         "Tanpa perawatan intensif, Ayah tiba-tiba tidak sadarkan diri. Kamu panik menelepon ambulans sambil merasa gagal menjaga rumah.",
       statusChanges: { stress: 12, trauma: 12 },
+    };
+  }
+
+  if (worldState.hoursSinceRest >= 72) {
+    return {
+      label: "Akhir: Tubuh Menyerah",
+      narrative:
+        "Tiga hari tanpa tidur membuatmu rubuh di lantai. Ketika sadar di klinik darurat, kamu mendapati Ayah sendirian menunggu bantuan.",
+      statusChanges: { stress: 10, trauma: 10 },
     };
   }
 

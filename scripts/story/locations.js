@@ -41,6 +41,7 @@ export const locations = {
     actions: [
       { type: "action", id: "periksaAyah" },
       { type: "action", id: "istirahatPendek" },
+      { type: "action", id: "tidurBergantian" },
       { type: "action", id: "latihanNapas" },
     ],
     connections: ["ruangKeluarga"],

@@ -1,5 +1,37 @@
 import { formatCurrency } from "../util/format.js";
 
+function clearTriggeredEvents(state, ids = []) {
+  if (!state?.flags?.triggeredEvents) {
+    return;
+  }
+  ids.forEach((id) => {
+    if (id) {
+      delete state.flags.triggeredEvents[id];
+    }
+  });
+}
+
+function resetSleepWarnings(state) {
+  if (!state?.flags) {
+    return;
+  }
+  state.flags.sleepDeprivationStage = 0;
+  clearTriggeredEvents(state, [
+    "sleepWarningStage1",
+    "sleepWarningStage2",
+    "sleepWarningStage3",
+    "sleepWarningCollapse",
+  ]);
+}
+
+function resetCareWarnings(state) {
+  if (!state?.flags) {
+    return;
+  }
+  state.flags.careEscalationStage = 0;
+  clearTriggeredEvents(state, ["careWarningStage1", "careWarningStage2", "careWarningStage3"]);
+}
+
 export const actionLibrary = {
   bacaTagihan: {
     label: "Teliti tumpukan tagihan",
@@ -115,6 +147,7 @@ export const actionLibrary = {
       "Ayah demam. Kamu mengganti kompres dan mengusap dahinya hingga napasnya kembali teratur.",
     after: (state) => {
       state.hoursSinceFatherCare = 0;
+      resetCareWarnings(state);
     },
   },
   istirahatPendek: {
@@ -126,6 +159,28 @@ export const actionLibrary = {
     statusChanges: { fatigue: -14, stress: -3 },
     narrative: () =>
       "Kamu menyandarkan kepala di tepi ranjang tanpa benar-benar tidur. Setidaknya ototmu beristirahat sebentar.",
+    after: (state) => {
+      state.hoursSinceRest = Math.max(0, state.hoursSinceRest - 2);
+      if (state.hoursSinceRest <= 6) {
+        resetSleepWarnings(state);
+      }
+    },
+  },
+  tidurBergantian: {
+    label: "Tidur bergantian selama 3 jam",
+    time: 3,
+    traits: ["recovery", "physical"],
+    condition: (state) => state.hoursSinceFatherCare <= 1.5 || state.flags.safeWithSupport,
+    baseEffects: { resilience: 2, willpower: 2, physique: 1 },
+    statusChanges: { fatigue: -32, stress: -9, trauma: -3 },
+    narrative: () =>
+      "Kamu memasang alarm, menarik selimut tipis, dan memaksa diri tidur pulas sementara rumah relatif aman.",
+    after: (state) => {
+      state.hoursSinceRest = 0;
+      resetSleepWarnings(state);
+      state.flags.safeWithSupport = false;
+      return "Tubuh terasa lebih ringan. Kamu terbangun sebelum alarm berbunyi dan segera mengecek Ayah.";
+    },
   },
   masakSup: {
     label: "Masak sup jahe hangat",
