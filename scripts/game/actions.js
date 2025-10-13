@@ -136,6 +136,23 @@ export const actionLibrary = {
     statusChanges: { money: -2_000_000, debt: -2_000_000, stress: -4 },
     narrative: () =>
       "Kamu membuka aplikasi bank dan mentransfer dua juta sebagai penegasan niat baik kepada debt collector.",
+    after: (state) => {
+      const amount = 2_000_000;
+      state.flags.totalCollectorPayments =
+        (state.flags.totalCollectorPayments || 0) + amount;
+      state.flags.lastCollectorPayment = {
+        day: state.day,
+        hour: state.hour,
+        minute: state.minute,
+      };
+      state.flags.safeWithSupport = true;
+      state.flags.collectorUltimatum = false;
+      state.flags.nextCollectorVisit = {
+        day: state.day + 1,
+        hour: 10,
+      };
+      return "Bukti transfer tersimpan. Setidaknya mereka tahu kamu tidak kabur.";
+    },
   },
   periksaAyah: {
     label: "Periksa kondisi Ayah",
@@ -359,5 +376,20 @@ export const actionLibrary = {
     statusChanges: { trauma: -4, stress: -3 },
     narrative: () =>
       "Kamu menuangkan rasa takut dan harapan dalam jurnal. Kata-kata itu menegaskan kembali alasanmu bertahan.",
+  },
+  gadaiPerhiasan: {
+    label: "Gadai cincin peninggalan Ibu",
+    time: 1.5,
+    traits: ["financial", "social"],
+    condition: (state) => !state.flags.pawnedJewelry,
+    baseEffects: { assertiveness: 1, willpower: -1, deviancy: 1 },
+    statusChanges: { money: 3_500_000, stress: 5, trauma: 4 },
+    narrative: () =>
+      "Dengan tangan gemetar kamu memotret cincin emas Ibu dan menghubungi kurir pegadaian online yang siap menjemput malam ini.",
+    after: (state) => {
+      state.flags.pawnedJewelry = true;
+      state.flags.safeWithSupport = false;
+      return "Dana segar masuk, tapi kamu berjanji menebusnya kembali suatu hari nanti.";
+    },
   },
 };
