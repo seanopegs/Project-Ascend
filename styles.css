@@ -780,6 +780,9 @@ body.modal-open {
 
 .narrative-columns .status {
   grid-area: status;
+  position: sticky;
+  top: 1.5rem;
+  align-self: start;
 }
 
 .story {
@@ -875,9 +878,10 @@ body.modal-open {
   border: 1px solid var(--surface-border);
   position: static;
   top: auto;
-  max-height: none;
-  overflow: visible;
-  scrollbar-gutter: auto;
+  max-height: clamp(320px, 62vh, 560px);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
 }
 
 .choices:focus-visible {
@@ -951,7 +955,7 @@ body.modal-open {
   color: var(--choice-hint-color);
   background: var(--choice-hint-bg);
   border: 1px solid var(--choice-hint-border);
-  border-radius: 999px;
+  border-radius: 14px;
   padding: 0.3rem 0.75rem;
   line-height: 1.45;
   box-shadow: 0 14px 28px -20px var(--shadow);
@@ -1615,6 +1619,11 @@ body.modal-open {
     grid-template-areas:
       "main"
       "status";
+  }
+
+  .narrative-columns .status {
+    position: static;
+    top: auto;
   }
 
   .choices {
