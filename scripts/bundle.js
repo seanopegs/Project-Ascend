@@ -1765,6 +1765,7 @@ var GameApp = (() => {
       const card = document.createElement("article");
       card.className = "status-card";
       card.dataset.metric = key;
+      card.tabIndex = 0;
       if (meta.meter) {
         card.classList.add("status-card--meter");
       }
@@ -1784,9 +1785,15 @@ var GameApp = (() => {
         card.appendChild(meter);
       }
       const description = document.createElement("p");
-      description.className = "status-description";
+      description.className = "status-description sr-only";
+      const descriptionId = `status-${key}-description`;
+      description.id = descriptionId;
       const initialValue = Number(worldState2[key] ?? meta.min ?? 0);
       description.textContent = meta.describeState?.(initialValue, worldState2) ?? "";
+      card.dataset.tooltip = description.textContent ?? "";
+      if (description.textContent) {
+        card.setAttribute("aria-describedby", descriptionId);
+      }
       card.appendChild(description);
       containerRef2.appendChild(card);
       statusElements.set(key, { card, value, meterFill, description });
@@ -1812,7 +1819,13 @@ var GameApp = (() => {
       if (elements.description) {
         const description = meta.describeState?.(value, worldState2) ?? "";
         elements.description.textContent = description;
-        elements.description.hidden = !description;
+        if (description) {
+          elements.card.dataset.tooltip = description;
+          elements.card.setAttribute("aria-describedby", elements.description.id);
+        } else {
+          elements.card.dataset.tooltip = "";
+          elements.card.removeAttribute("aria-describedby");
+        }
       }
     });
   }
