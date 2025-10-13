@@ -1130,7 +1130,11 @@ function renderScene(narratives = [], changeRecords = []) {
     restartButton.hidden = true;
   }
   if (storyElement && typeof storyElement.focus === "function") {
-    storyElement.focus();
+    try {
+      storyElement.focus({ preventScroll: true });
+    } catch (error) {
+      storyElement.focus();
+    }
   }
 }
 

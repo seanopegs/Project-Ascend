@@ -410,7 +410,7 @@ var GameApp = (() => {
       label: "Periksa kondisi Ayah",
       time: 0.5,
       traits: ["care", "physical"],
-      baseEffects: { purity: 2, resilience: 2, willpower: 1, beauty: 1 },
+      baseEffects: { purity: 2, resilience: 2, willpower: 1, beauty: 1, physique: 1 },
       statusChanges: { fatherHealth: 8, stress: -4, fatigue: 2 },
       narrative: () => "Ayah demam. Kamu mengganti kompres dan mengusap dahinya hingga napasnya kembali teratur.",
       after: (state) => {
@@ -430,7 +430,7 @@ var GameApp = (() => {
       label: "Masak sup jahe hangat",
       time: 1,
       traits: ["care", "physical"],
-      baseEffects: { purity: 1, beauty: 1 },
+      baseEffects: { purity: 1, beauty: 1, physique: 1 },
       statusChanges: { fatigue: -5, stress: -2, fatherHealth: 3 },
       narrative: () => "Aroma jahe memenuhi dapur. Sup hangat siap kamu bawa untuk membantu Ayah menelan obat."
     },
@@ -523,12 +523,12 @@ var GameApp = (() => {
       time: 1.25,
       traits: ["business", "work"],
       condition: (state) => state.flags.homeBusinessPlan,
-      baseEffects: { ingenuity: 1, resilience: 1 },
+      baseEffects: { ingenuity: 2, resilience: 1, assertiveness: 1 },
       statusChanges: (state) => {
         const momentum = Math.min(state.flags.homeBusinessMomentum || 0, 4);
-        const baseIncome = 38e4;
-        const bonus = momentum * 45e3;
-        return { money: baseIncome + bonus, fatigue: 6, stress: 3 };
+        const baseIncome = 36e4;
+        const bonus = momentum * 4e4;
+        return { money: baseIncome + bonus, fatigue: 5.5, stress: 2.5 };
       },
       narrative: () => "Kamu menyiapkan paket camilan, memotret, lalu membalas pesan titipan pesanan dari grup tetangga.",
       after: (state) => {
@@ -540,10 +540,10 @@ var GameApp = (() => {
     },
     kerjaLembur: {
       label: "Kerjakan lembur daring",
-      time: 3,
+      time: 2.25,
       traits: ["work", "mental"],
-      baseEffects: { physique: -2, willpower: 2 },
-      statusChanges: { money: 18e4, fatigue: 10, stress: 5 },
+      baseEffects: { physique: -1, willpower: 2, ingenuity: 1 },
+      statusChanges: { money: 32e4, fatigue: 7, stress: 4 },
       narrative: () => "Kamu menyelesaikan dua desain kilat untuk klien daring. Bayarannya lumayan, tapi mata terasa perih menahan kantuk."
     },
     rekamKontenMalam: {
@@ -562,21 +562,24 @@ var GameApp = (() => {
     },
     siaranDukungan: {
       label: "Siaran dukungan tengah malam",
-      time: 0.75,
+      time: 1,
       traits: ["social", "business"],
       condition: (state) => state.flags.creatorChannel,
-      baseEffects: { confidence: 1, networking: 2 },
+      baseEffects: { confidence: 1, networking: 2, assertiveness: 1 },
       statusChanges: (state) => {
         const momentum = Math.max(state.flags.creatorMomentum || 1, 1);
         const cappedMomentum = Math.min(momentum, 5);
-        const baseIncome = 22e4;
-        const bonus = (cappedMomentum - 1) * 55e3;
-        return { money: baseIncome + bonus, stress: -3, fatigue: 2, trauma: -1 };
+        const baseIncome = 18e4;
+        const bonus = (cappedMomentum - 1) * 4e4;
+        const stressRelief = cappedMomentum >= 3 ? -1.5 : -1;
+        const traumaShift = cappedMomentum >= 4 ? -0.5 : 0;
+        return { money: baseIncome + bonus, stress: stressRelief, fatigue: 4, trauma: traumaShift };
       },
       narrative: () => "Lewat siaran singkat kamu berbagi kabar terbaru, menerima doa, dan mengingatkan penonton soal kondisi Ayah.",
       after: (state) => {
         const momentum = state.flags.creatorMomentum || 1;
-        state.flags.creatorMomentum = Math.min(momentum + 1, 6);
+        const increment = momentum >= 3 ? 0.5 : 1;
+        state.flags.creatorMomentum = Math.min(momentum + increment, 6);
         return "Penonton mengirim tip kecil dan menawarkan membagikan kanalmu ke komunitas dukungan lain.";
       }
     },
@@ -3514,7 +3517,11 @@ var GameApp = (() => {
       restartButton.hidden = true;
     }
     if (storyElement && typeof storyElement.focus === "function") {
-      storyElement.focus();
+      try {
+        storyElement.focus({ preventScroll: true });
+      } catch (error) {
+        storyElement.focus();
+      }
     }
   }
   function describeCollectorDeadline() {
