@@ -38,6 +38,8 @@ let journalPanel;
 let miniMapContainer;
 let themeToggleButton;
 let statsPanelVisible = false;
+let cycleBadgeElement;
+let strategyBadgeElement;
 
 const ACTION_HOTKEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 const TRAVEL_HOTKEYS = Array.from('abcdefghijklmnopqrstuvwxyz');
@@ -66,6 +68,32 @@ function describeDaySegment(hour) {
     return 'Senja Ini';
   }
   return 'Malam Ini';
+}
+
+function describeRiskBadge() {
+  if (worldState.flags.collectorAssetSeizure) {
+    return 'Ancaman Penyitaan';
+  }
+  if (worldState.flags.collectorAccountFreeze) {
+    return 'Akun Dibekukan';
+  }
+  if (worldState.flags.collectorLegalThreat || worldState.flags.collectorUltimatum) {
+    return 'Ultimatum Kolektor';
+  }
+  if (worldState.flags.debtCollectorKnock) {
+    return 'Siaga Penagih';
+  }
+  return 'Taktik Bertahan';
+}
+
+function updateHeaderBadges() {
+  if (cycleBadgeElement) {
+    const segment = describeDaySegment(worldState.hour);
+    cycleBadgeElement.textContent = `Hari ${worldState.day} • ${segment}`;
+  }
+  if (strategyBadgeElement) {
+    strategyBadgeElement.textContent = describeRiskBadge();
+  }
 }
 
 function updateStatusHeading() {
@@ -200,6 +228,8 @@ export function initializeGame() {
   journalPanel = document.getElementById("journalPanel");
   miniMapContainer = document.getElementById("miniMap");
   themeToggleButton = document.getElementById("themeToggle");
+  cycleBadgeElement = document.querySelector('.header-meta .badge:not(.accent)');
+  strategyBadgeElement = document.querySelector('.header-meta .badge.accent');
 
   if (toggleStatsButton && statsElement) {
     toggleStatsButton.setAttribute("aria-controls", statsElement.id);
@@ -239,6 +269,7 @@ export function initializeGame() {
   }
 
   ensureChoiceHotkeyListener();
+  updateHeaderBadges();
   resetGame();
 }
 
@@ -318,6 +349,14 @@ function createInitialWorldState() {
       sleepDeprivationStage: 0,
       careEscalationStage: 0,
       collectorEscalationStage: 0,
+      totalCollectorPayments: 0,
+      lastCollectorPayment: null,
+      collectorMorningPressure: false,
+      collectorPenaltyDay2: false,
+      collectorLegalThreat: false,
+      collectorAccountFreeze: false,
+      collectorAssetSeizure: false,
+      pawnedJewelry: false,
     },
   };
 }
@@ -356,6 +395,7 @@ function resetGame() {
 
 function updateStatusSummary() {
   updateStatusHeading();
+  updateHeaderBadges();
   const location = locations[worldState.location];
   const clock = formatTime(worldState.hour, worldState.minute);
   const calendar = formatCalendarDate(worldState);
@@ -374,6 +414,14 @@ function updateStatusSummary() {
     const loanDeadline = describeLoanDeadline();
     if (loanDeadline) {
       summaryParts.push(loanDeadline);
+    }
+    if (worldState.flags.debtCollectorKnock) {
+      const paid = worldState.flags.totalCollectorPayments || 0;
+      if (paid > 0) {
+        summaryParts.push(`Pembayaran kolektor: ${formatCurrency(paid)}`);
+      } else {
+        summaryParts.push("Belum ada pembayaran kolektor");
+      }
     }
     if (worldState.flags.homeBusinessLaunched) {
       summaryParts.push("Pre-order tetangga aktif");
@@ -753,11 +801,15 @@ function handleEvents() {
     if (narrative) {
       narratives.push(narrative);
     }
-    if (event.baseEffects) {
-      changeRecords = changeRecords.concat(applyEffects(event.baseEffects));
+    const baseEffects =
+      typeof event.baseEffects === 'function' ? event.baseEffects(worldState) : event.baseEffects;
+    if (baseEffects) {
+      changeRecords = changeRecords.concat(applyEffects(baseEffects));
     }
-    if (event.statusChanges) {
-      changeRecords = changeRecords.concat(applyStatusChanges(event.statusChanges));
+    const statusChanges =
+      typeof event.statusChanges === 'function' ? event.statusChanges(worldState) : event.statusChanges;
+    if (statusChanges) {
+      changeRecords = changeRecords.concat(applyStatusChanges(statusChanges));
     }
     const extra = event.after?.(worldState);
     if (extra) {
@@ -775,11 +827,15 @@ function handleEvents() {
     if (narrative) {
       narratives.push(narrative);
     }
-    if (event.baseEffects) {
-      changeRecords = changeRecords.concat(applyEffects(event.baseEffects));
+    const baseEffects =
+      typeof event.baseEffects === 'function' ? event.baseEffects(worldState) : event.baseEffects;
+    if (baseEffects) {
+      changeRecords = changeRecords.concat(applyEffects(baseEffects));
     }
-    if (event.statusChanges) {
-      changeRecords = changeRecords.concat(applyStatusChanges(event.statusChanges));
+    const statusChanges =
+      typeof event.statusChanges === 'function' ? event.statusChanges(worldState) : event.statusChanges;
+    if (statusChanges) {
+      changeRecords = changeRecords.concat(applyStatusChanges(statusChanges));
     }
     const extra = event.after?.(worldState);
     if (extra) {
@@ -1343,6 +1399,7 @@ function finishGame(ending, narratives, changeRecords) {
 
 function buildJournalEntries() {
   const entries = [];
+  const totalPaid = worldState.flags.totalCollectorPayments || 0;
 
   if (!worldState.flags.debtCollectorKnock) {
     entries.push({
@@ -1350,6 +1407,70 @@ function buildJournalEntries() {
       time: "Malam ini pukul 23.00",
       description:
         "Penagih akan kembali memastikan tagihanmu. Siapkan strategi bicara atau dana dadakan agar tekanan tidak meningkat.",
+    });
+  }
+
+  if (worldState.flags.debtCollectorKnock && !worldState.flags.collectorMorningPressure) {
+    entries.push({
+      title: "Tekanan Pagi Kolektor",
+      time: worldState.day === 1 ? "Besok pukul 09.00" : "Segera setelah pukul 09.00",
+      description: "Mereka menuntut bukti transfer minimal Rp3.000.000 sebelum petang.",
+    });
+  }
+
+  if (
+    worldState.flags.debtCollectorKnock &&
+    !worldState.flags.collectorPenaltyDay2 &&
+    worldState.day <= 2 &&
+    totalPaid < 2_000_000
+  ) {
+    entries.push({
+      title: "Denda Hari Kedua",
+      time: "Hari 2 pukul 12.00",
+      description:
+        "Tanpa transfer minimal Rp2.000.000, koperasi menambahkan denda dan mengirim tim tambahan ke rumahmu.",
+    });
+  }
+
+  if (
+    worldState.flags.debtCollectorKnock &&
+    !worldState.flags.collectorLegalThreat &&
+    worldState.day <= 3 &&
+    totalPaid < 5_000_000
+  ) {
+    entries.push({
+      title: "Ancaman Hukum",
+      time: "Hari 3 pukul 09.00",
+      description:
+        "Surat peringatan akan datang kecuali kamu bisa menunjukkan pembayaran minimal Rp5.000.000.",
+    });
+  }
+
+  if (
+    worldState.flags.debtCollectorKnock &&
+    !worldState.flags.collectorAccountFreeze &&
+    worldState.day <= 3 &&
+    totalPaid < 7_000_000
+  ) {
+    entries.push({
+      title: "Risiko Rekening Dibekukan",
+      time: "Hari 3 menjelang malam",
+      description:
+        "Jika tabunganmu kosong dari cicilan, koperasi bisa menahan saldo rekening hingga ada transfer Rp7.000.000.",
+    });
+  }
+
+  if (
+    worldState.flags.debtCollectorKnock &&
+    !worldState.flags.collectorAssetSeizure &&
+    worldState.day <= 4 &&
+    totalPaid < 10_000_000
+  ) {
+    entries.push({
+      title: "Penyitaan Barang",
+      time: "Hari 4 pukul 09.00",
+      description:
+        "Tanpa pembayaran besar, mereka siap membawa barang elektronik dan menambah utang sebesar Rp3.500.000.",
     });
   }
 

@@ -23,6 +23,7 @@ export const locations = {
       { type: "action", id: "siaranDukungan" },
       { type: "action", id: "latihanNapas" },
       { type: "action", id: "bayarDebtSebagian" },
+      { type: "action", id: "gadaiPerhiasan" },
       { type: "action", id: "tulisJurnal" },
     ],
     connections: ["kamarAyah", "dapur", "halaman", "ruangKerja"],
