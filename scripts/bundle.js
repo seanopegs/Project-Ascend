@@ -309,6 +309,35 @@ var GameApp = (() => {
   ];
 
   // scripts/game/actions.js
+  function clearTriggeredEvents(state, ids = []) {
+    if (!state?.flags?.triggeredEvents) {
+      return;
+    }
+    ids.forEach((id) => {
+      if (id) {
+        delete state.flags.triggeredEvents[id];
+      }
+    });
+  }
+  function resetSleepWarnings(state) {
+    if (!state?.flags) {
+      return;
+    }
+    state.flags.sleepDeprivationStage = 0;
+    clearTriggeredEvents(state, [
+      "sleepWarningStage1",
+      "sleepWarningStage2",
+      "sleepWarningStage3",
+      "sleepWarningCollapse"
+    ]);
+  }
+  function resetCareWarnings(state) {
+    if (!state?.flags) {
+      return;
+    }
+    state.flags.careEscalationStage = 0;
+    clearTriggeredEvents(state, ["careWarningStage1", "careWarningStage2", "careWarningStage3"]);
+  }
   var actionLibrary = {
     bacaTagihan: {
       label: "Teliti tumpukan tagihan",
@@ -415,6 +444,7 @@ var GameApp = (() => {
       narrative: () => "Ayah demam. Kamu mengganti kompres dan mengusap dahinya hingga napasnya kembali teratur.",
       after: (state) => {
         state.hoursSinceFatherCare = 0;
+        resetCareWarnings(state);
       }
     },
     istirahatPendek: {
@@ -424,7 +454,28 @@ var GameApp = (() => {
       condition: (state) => state.fatigue >= 25,
       baseEffects: { resilience: -1, willpower: 1 },
       statusChanges: { fatigue: -14, stress: -3 },
-      narrative: () => "Kamu menyandarkan kepala di tepi ranjang tanpa benar-benar tidur. Setidaknya ototmu beristirahat sebentar."
+      narrative: () => "Kamu menyandarkan kepala di tepi ranjang tanpa benar-benar tidur. Setidaknya ototmu beristirahat sebentar.",
+      after: (state) => {
+        state.hoursSinceRest = Math.max(0, state.hoursSinceRest - 2);
+        if (state.hoursSinceRest <= 6) {
+          resetSleepWarnings(state);
+        }
+      }
+    },
+    tidurBergantian: {
+      label: "Tidur bergantian selama 3 jam",
+      time: 3,
+      traits: ["recovery", "physical"],
+      condition: (state) => state.hoursSinceFatherCare <= 1.5 || state.flags.safeWithSupport,
+      baseEffects: { resilience: 2, willpower: 2, physique: 1 },
+      statusChanges: { fatigue: -32, stress: -9, trauma: -3 },
+      narrative: () => "Kamu memasang alarm, menarik selimut tipis, dan memaksa diri tidur pulas sementara rumah relatif aman.",
+      after: (state) => {
+        state.hoursSinceRest = 0;
+        resetSleepWarnings(state);
+        state.flags.safeWithSupport = false;
+        return "Tubuh terasa lebih ringan. Kamu terbangun sebelum alarm berbunyi dan segera mengecek Ayah.";
+      }
     },
     masakSup: {
       label: "Masak sup jahe hangat",
@@ -633,6 +684,7 @@ var GameApp = (() => {
       actions: [
         { type: "action", id: "periksaAyah" },
         { type: "action", id: "istirahatPendek" },
+        { type: "action", id: "tidurBergantian" },
         { type: "action", id: "latihanNapas" }
       ],
       connections: ["ruangKeluarga"]
@@ -766,6 +818,99 @@ var GameApp = (() => {
         } else {
           state.flags.dinaLoanDue = null;
         }
+      }
+    },
+    {
+      id: "sleepWarningStage1",
+      condition: (state) => state.hoursSinceRest >= 18 && (state.flags.sleepDeprivationStage || 0) < 1,
+      narrative: () => "Kelopak matamu terasa berat dan konsentrasi buyar. Jika memaksa terjaga, kamu akan makin ceroboh.",
+      statusChanges: { stress: 5, fatigue: 4 },
+      after: (state) => {
+        state.flags.sleepDeprivationStage = 1;
+        return "Cari jeda istirahat sungguhan sebelum tubuhmu benar-benar menyerah.";
+      }
+    },
+    {
+      id: "sleepWarningStage2",
+      condition: (state) => state.hoursSinceRest >= 30 && (state.flags.sleepDeprivationStage || 0) < 2,
+      narrative: () => "Pusing hebat membuatmu limbung. Tubuh protes karena sudah lebih dari sehari penuh tanpa tidur.",
+      statusChanges: { stress: 7, fatigue: 7, trauma: 2 },
+      after: (state) => {
+        state.flags.sleepDeprivationStage = 2;
+        return "Sinyal bahaya semakin jelas\u2014tidur bergantian bukan lagi pilihan, tetapi kebutuhan.";
+      }
+    },
+    {
+      id: "sleepWarningStage3",
+      condition: (state) => state.hoursSinceRest >= 42 && (state.flags.sleepDeprivationStage || 0) < 3,
+      narrative: () => "Kamu mulai mengalami halusinasi suara mesin yang tidak ada. Refleksmu menurun drastis.",
+      statusChanges: { stress: 9, fatigue: 9, trauma: 4 },
+      after: (state) => {
+        state.flags.sleepDeprivationStage = 3;
+        return "Jika tidak tidur sekarang, kamu bisa membuat keputusan fatal.";
+      }
+    },
+    {
+      id: "sleepWarningCollapse",
+      condition: (state) => state.hoursSinceRest >= 54 && (state.flags.sleepDeprivationStage || 0) < 4,
+      narrative: () => "Tubuhmu mendadak jatuh ke lantai selama beberapa menit micro-sleep. Kamu terbangun dengan dada berdebar.",
+      statusChanges: { stress: 12, fatigue: 12, trauma: 6, fatherHealth: -6 },
+      after: (state) => {
+        state.flags.sleepDeprivationStage = 4;
+        state.hoursSinceRest = Math.max(0, state.hoursSinceRest - 1.5);
+        return "Ayah sempat dibiarkan tanpa pengawasan. Jangan biarkan ini terulang.";
+      }
+    },
+    {
+      id: "careWarningStage1",
+      condition: (state) => state.hoursSinceFatherCare >= 4 && (state.flags.careEscalationStage || 0) < 1,
+      narrative: () => "Ayah mulai menggigil lagi. Kompres terasa hangat dan harus diganti sebelum demamnya naik.",
+      statusChanges: { fatherHealth: -4, stress: 4 },
+      after: (state) => {
+        state.flags.careEscalationStage = 1;
+      }
+    },
+    {
+      id: "careWarningStage2",
+      condition: (state) => state.hoursSinceFatherCare >= 6 && (state.flags.careEscalationStage || 0) < 2,
+      narrative: () => "Napas Ayah terdengar berat. Jika terlambat lebih lama, kondisinya bisa anjlok dan butuh rumah sakit.",
+      statusChanges: { fatherHealth: -8, stress: 6, trauma: 2 },
+      after: (state) => {
+        state.flags.careEscalationStage = 2;
+        return "Kamu harus segera kembali ke kamar Ayah atau minta bala bantuan.";
+      }
+    },
+    {
+      id: "careWarningStage3",
+      condition: (state) => state.hoursSinceFatherCare >= 8 && (state.flags.careEscalationStage || 0) < 3,
+      narrative: () => "Ayah mengigau memanggil namamu. Kulitnya semakin panas dan kamu mendengar batuk kering yang dalam.",
+      statusChanges: { fatherHealth: -14, stress: 8, trauma: 4 },
+      after: (state) => {
+        state.flags.careEscalationStage = 3;
+        return "Satu langkah lagi menuju krisis medis. Jangan tinggalkan Ayah terlalu lama.";
+      }
+    },
+    {
+      id: "collectorEscalationWarning",
+      condition: (state) => state.flags.debtCollectorKnock && state.day >= 2 && (state.flags.collectorEscalationStage || 0) < 1,
+      narrative: () => "Telepon dari nomor tak dikenal masuk berkali-kali. Penagih memperingatkan akan membawa rekan lebih banyak besok siang.",
+      statusChanges: { stress: 7, trauma: 3 },
+      after: (state) => {
+        state.flags.collectorEscalationStage = 1;
+        state.flags.nextCollectorVisit = { day: state.day + 1, hour: 11 };
+        return "Kamu punya kurang dari sehari untuk menyiapkan pembayaran atau strategi perlindungan.";
+      }
+    },
+    {
+      id: "collectorEscalationRaid",
+      condition: (state) => (state.flags.collectorEscalationStage || 0) >= 1 && state.day >= 3 && !state.flags.houseSecured,
+      narrative: () => "Suara rantai pagar bergesek. Penagih mencoba memaksa masuk karena melihat rumah tidak terkunci rapat.",
+      statusChanges: { stress: 10, trauma: 6 },
+      after: (state) => {
+        state.flags.collectorEscalationStage = 2;
+        state.flags.safeWithSupport = false;
+        state.flags.nextCollectorVisit = { day: state.day, hour: Math.min(state.hour + 3, 22) };
+        return "Segera kunci rumah atau cari saksi. Mereka bisa kembali kapan saja malam ini.";
       }
     }
   ];
@@ -2554,6 +2699,7 @@ var GameApp = (() => {
   var showInsightsInFeedback = true;
   var statsElement;
   var statusSummaryElement;
+  var statusHeadingTitleElement;
   var statusMetricsElement;
   var storyElement;
   var feedbackElement;
@@ -2571,6 +2717,32 @@ var GameApp = (() => {
   var hotkeyListenerAttached = false;
   function normalizeHotkey(value) {
     return typeof value === "string" ? value.toLowerCase() : "";
+  }
+  function describeDaySegment(hour) {
+    const normalized = (Number(hour) % 24 + 24) % 24;
+    if (normalized < 4) {
+      return "Dini Hari";
+    }
+    if (normalized < 11) {
+      return "Pagi Ini";
+    }
+    if (normalized < 15) {
+      return "Siang Ini";
+    }
+    if (normalized < 18) {
+      return "Sore Ini";
+    }
+    if (normalized < 21) {
+      return "Senja Ini";
+    }
+    return "Malam Ini";
+  }
+  function updateStatusHeading() {
+    if (!statusHeadingTitleElement) {
+      return;
+    }
+    const segment = describeDaySegment(worldState.hour);
+    statusHeadingTitleElement.textContent = `Kondisi ${segment}`;
   }
   function isTextEntryElement(element) {
     if (!(element instanceof HTMLElement)) {
@@ -2669,6 +2841,7 @@ var GameApp = (() => {
     detachUiHandlers();
     statsElement = document.getElementById("stats");
     statusSummaryElement = document.getElementById("statusSummary");
+    statusHeadingTitleElement = document.getElementById("statusHeadingTitle");
     statusMetricsElement = document.getElementById("statusMetrics");
     storyElement = document.getElementById("story");
     feedbackElement = document.getElementById("feedback");
@@ -2756,6 +2929,7 @@ var GameApp = (() => {
       debt: 82e6,
       debtInterestRate: 45e-4,
       hoursSinceFatherCare: 1,
+      hoursSinceRest: 6,
       flags: {
         triggeredEvents: {},
         reviewedBills: false,
@@ -2780,7 +2954,10 @@ var GameApp = (() => {
         homeBusinessLaunched: false,
         homeBusinessMomentum: 0,
         creatorChannel: false,
-        creatorMomentum: 0
+        creatorMomentum: 0,
+        sleepDeprivationStage: 0,
+        careEscalationStage: 0,
+        collectorEscalationStage: 0
       }
     };
   }
@@ -2813,12 +2990,15 @@ var GameApp = (() => {
     renderScene([introText], []);
   }
   function updateStatusSummary() {
+    updateStatusHeading();
     const location = locations[worldState.location];
     const clock = formatTime(worldState.hour, worldState.minute);
     const calendar = formatCalendarDate(worldState);
+    const segment = describeDaySegment(worldState.hour);
     if (statusSummaryElement) {
       const summaryParts = [
         `Hari ${worldState.day} (${calendar})`,
+        segment,
         clock,
         location?.name ?? "Lokasi tidak dikenal"
       ];
@@ -3132,6 +3312,15 @@ var GameApp = (() => {
       worldState.hoursSinceFatherCare += portion;
       if (worldState.hoursSinceFatherCare >= 4) {
         aggregate.fatherHealth = (aggregate.fatherHealth || 0) + applyStatusDelta("fatherHealth", -1.5 * portion);
+      }
+      worldState.hoursSinceRest += portion;
+      if (worldState.hoursSinceRest >= 24) {
+        const fatiguePenalty = 1.2 + Math.max(0, worldState.hoursSinceRest - 24) * 0.05;
+        aggregate.fatigue = (aggregate.fatigue || 0) + applyStatusDelta("fatigue", fatiguePenalty * portion);
+      }
+      if (worldState.hoursSinceRest >= 36) {
+        aggregate.stress = (aggregate.stress || 0) + applyStatusDelta("stress", 0.8 * portion);
+        aggregate.trauma = (aggregate.trauma || 0) + applyStatusDelta("trauma", 0.3 * portion);
       }
       if (worldState.stress >= 80) {
         aggregate.trauma = (aggregate.trauma || 0) + applyStatusDelta("trauma", 0.6 * portion);
@@ -3495,7 +3684,10 @@ var GameApp = (() => {
     const paragraphs = [];
     const clock = formatTime(worldState.hour, worldState.minute);
     const calendar = formatCalendarDate(worldState);
-    paragraphs.push(`Hari ${worldState.day} (${calendar}), ${clock} di ${location?.name ?? "???"}.`);
+    const segment = describeDaySegment(worldState.hour).toLowerCase();
+    paragraphs.push(
+      `Hari ${worldState.day} (${calendar}), ${clock} (${segment}) di ${location?.name ?? "???"}.`
+    );
     if (location) {
       const description = location.description?.(worldState);
       if (description) {
@@ -3623,6 +3815,13 @@ var GameApp = (() => {
         label: "Akhir: Ayah Kolaps",
         narrative: "Tanpa perawatan intensif, Ayah tiba-tiba tidak sadarkan diri. Kamu panik menelepon ambulans sambil merasa gagal menjaga rumah.",
         statusChanges: { stress: 12, trauma: 12 }
+      };
+    }
+    if (worldState.hoursSinceRest >= 72) {
+      return {
+        label: "Akhir: Tubuh Menyerah",
+        narrative: "Tiga hari tanpa tidur membuatmu rubuh di lantai. Ketika sadar di klinik darurat, kamu mendapati Ayah sendirian menunggu bantuan.",
+        statusChanges: { stress: 10, trauma: 10 }
       };
     }
     if (worldState.trauma >= 95 || worldState.stress >= 100) {
