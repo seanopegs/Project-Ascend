@@ -3,14 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Jalan Keluar - Sebuah Kisah Teks</title>
+    <title>Project Ascend - Sebuah Kisah Teks</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <div class="app-shell" aria-live="polite">
       <header class="app-header">
         <div>
-          <h1>Jalan Keluar</h1>
+          <h1>Project Ascend</h1>
           <p class="subtitle">
             Visual novel taktis tentang bertahan dari lilitan utang sambil merawat orang tua.
           </p>
@@ -31,14 +31,29 @@
         </div>
       </header>
       <div class="app-layout">
+        <main class="app-main">
+          <div class="narrative-columns">
+            <section id="status" class="status" aria-label="Situasi terbaru">
+              <header class="section-heading">
+                <h2>Kondisi Malam Ini</h2>
+                <p id="statusSummary" class="status-summary"></p>
+              </header>
+              <div id="statusMetrics" class="status-metrics"></div>
+            </section>
+            <div class="story-column">
+              <section id="story" class="story" tabindex="0" aria-label="Narasi"></section>
+              <section
+                id="feedback"
+                class="feedback"
+                aria-live="polite"
+                aria-label="Perubahan terbaru"
+              ></section>
+              <section id="choices" class="choices" aria-label="Pilihan"></section>
+              <button id="restart" class="restart" type="button" hidden>Mulai Lagi</button>
+            </div>
+          </div>
+        </main>
         <aside class="app-sidebar">
-          <section id="status" class="status" aria-label="Situasi terbaru">
-            <header class="section-heading">
-              <h2>Kondisi Malam Ini</h2>
-              <p id="statusSummary" class="status-summary"></p>
-            </header>
-            <div id="statusMetrics" class="status-metrics"></div>
-          </section>
           <section class="map-panel" aria-label="Denah lokasi">
             <header class="section-heading">
               <h2>Denah Rumah</h2>
@@ -46,7 +61,7 @@
             </header>
             <div id="miniMap" class="mini-map"></div>
           </section>
-          <div class="sidebar-controls">
+          <div class="sidebar-controls" role="group" aria-label="Panel referensi cepat">
             <button
               id="toggleStats"
               class="button tertiary"
@@ -62,17 +77,6 @@
           <section id="stats" class="stats-panel" hidden aria-label="Stat karakter"></section>
           <section id="journalPanel" class="journal-panel" hidden></section>
         </aside>
-        <main class="app-main">
-          <section id="story" class="story" tabindex="0" aria-label="Narasi"></section>
-          <section
-            id="feedback"
-            class="feedback"
-            aria-live="polite"
-            aria-label="Perubahan terbaru"
-          ></section>
-          <section id="choices" class="choices" aria-label="Pilihan"></section>
-          <button id="restart" class="restart" type="button" hidden>Mulai Lagi</button>
-        </main>
       </div>
     </div>
     <script type="module">
