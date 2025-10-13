@@ -32,22 +32,26 @@
       </header>
       <div class="app-layout">
         <main class="app-main">
-          <section id="status" class="status" aria-label="Situasi terbaru">
-            <header class="section-heading">
-              <h2>Kondisi Malam Ini</h2>
-              <p id="statusSummary" class="status-summary"></p>
-            </header>
-            <div id="statusMetrics" class="status-metrics"></div>
-          </section>
-          <section id="story" class="story" tabindex="0" aria-label="Narasi"></section>
-          <section
-            id="feedback"
-            class="feedback"
-            aria-live="polite"
-            aria-label="Perubahan terbaru"
-          ></section>
-          <section id="choices" class="choices" aria-label="Pilihan"></section>
-          <button id="restart" class="restart" type="button" hidden>Mulai Lagi</button>
+          <div class="narrative-columns">
+            <section id="status" class="status" aria-label="Situasi terbaru">
+              <header class="section-heading">
+                <h2>Kondisi Malam Ini</h2>
+                <p id="statusSummary" class="status-summary"></p>
+              </header>
+              <div id="statusMetrics" class="status-metrics"></div>
+            </section>
+            <div class="story-column">
+              <section id="story" class="story" tabindex="0" aria-label="Narasi"></section>
+              <section
+                id="feedback"
+                class="feedback"
+                aria-live="polite"
+                aria-label="Perubahan terbaru"
+              ></section>
+              <section id="choices" class="choices" aria-label="Pilihan"></section>
+              <button id="restart" class="restart" type="button" hidden>Mulai Lagi</button>
+            </div>
+          </div>
         </main>
         <aside class="app-sidebar">
           <section class="map-panel" aria-label="Denah lokasi">

@@ -762,6 +762,26 @@ body.modal-open {
   align-items: stretch;
 }
 
+.narrative-columns {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  grid-template-areas: "status main";
+  gap: 1.35rem;
+  align-items: start;
+}
+
+.narrative-columns .story-column {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+  min-width: 0;
+}
+
+.narrative-columns .status {
+  grid-area: status;
+}
+
 .story {
   display: flex;
   flex-direction: column;
@@ -1588,6 +1608,13 @@ body.modal-open {
 
   .app-main {
     gap: 1.15rem;
+  }
+
+  .narrative-columns {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "main"
+      "status";
   }
 
   .choices {
