@@ -419,9 +419,7 @@ body.modal-open {
 .status-card:hover::after,
 .status-card:hover::before,
 .status-card:focus-visible::after,
-.status-card:focus-visible::before,
-.status-card:focus-within::after,
-.status-card:focus-within::before {
+.status-card:focus-visible::before {
   opacity: 1;
   transform: translate(-50%, 0);
 }
@@ -684,7 +682,7 @@ body.modal-open {
 }
 
 .stat-card:hover,
-.stat-card:focus-within {
+.stat-card:focus-visible {
   transform: translateY(-3px);
   border-color: var(--stat-color);
   box-shadow: 0 22px 46px -30px rgba(8, 7, 20, 0.75);
