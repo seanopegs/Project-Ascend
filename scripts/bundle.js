@@ -2837,6 +2837,10 @@ var GameApp = (() => {
   var conditionNoteMap = /* @__PURE__ */ new Map();
   var conditionNoteSequence = 0;
   var showInsightsInFeedback = true;
+  var AUTOSAVE_STORAGE_KEY = "project-ascend:autosave";
+  var SNAPSHOT_VERSION = 1;
+  var autosaveSuppressed = false;
+  var cachedAutosaveSnapshot = null;
   var statsElement;
   var statusSummaryElement;
   var statusHeadingTitleElement;
@@ -2989,7 +2993,7 @@ var GameApp = (() => {
   }
   function handleRestartClick(event) {
     event?.preventDefault?.();
-    resetGame();
+    startNewSession();
   }
   function disableControl(button, message) {
     if (!button) {
@@ -3003,7 +3007,7 @@ var GameApp = (() => {
       button.title = message;
     }
   }
-  function initializeGame() {
+  function initializeGame(options = {}) {
     detachUiHandlers();
     statsElement = document.getElementById("stats");
     statusSummaryElement = document.getElementById("statusSummary");
@@ -3050,7 +3054,24 @@ var GameApp = (() => {
     }
     ensureChoiceHotkeyListener();
     updateHeaderBadges();
-    resetGame();
+    const controller = {
+      startNewGame: (meta) => startNewSession(meta),
+      loadSnapshot: (snapshot, loadOptions) => loadSnapshotFromData(snapshot, loadOptions),
+      getSnapshot: (meta) => createSnapshot(meta),
+      getCachedSnapshot: () => getAutosaveSnapshotInternal(),
+      clearAutosave: () => clearAutosaveStorage()
+    };
+    if (options.initialSnapshot) {
+      try {
+        controller.loadSnapshot(options.initialSnapshot, { source: "initial" });
+      } catch (error) {
+        console.error("Gagal memuat snapshot awal.", error);
+        controller.startNewGame();
+      }
+    } else if (options.autoStart !== false) {
+      controller.startNewGame();
+    }
+    return controller;
   }
   function buildMetadata() {
     allStatsMetadata.clear();
@@ -3137,6 +3158,238 @@ var GameApp = (() => {
         pawnedJewelry: false
       }
     };
+  }
+  function getLocalStorageSafe() {
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        return window.localStorage;
+      }
+    } catch (error) {
+      console.warn("Penyimpanan lokal tidak tersedia untuk simpanan otomatis.", error);
+    }
+    return null;
+  }
+  function deepClone(value) {
+    if (value === null || typeof value !== "object") {
+      return value;
+    }
+    if (typeof structuredClone === "function") {
+      try {
+        return structuredClone(value);
+      } catch (error) {
+      }
+    }
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (error) {
+      console.warn("Gagal melakukan kloning mendalam pada nilai.", error);
+      return value;
+    }
+  }
+  function mergeWorldState(savedWorld = {}) {
+    const base = createInitialWorldState();
+    const clone = typeof savedWorld === "object" && savedWorld ? deepClone(savedWorld) : {};
+    const merged = { ...base, ...clone };
+    merged.flags = { ...base.flags, ...clone.flags || {} };
+    if (!merged.flags.triggeredEvents) {
+      merged.flags.triggeredEvents = {};
+    }
+    return merged;
+  }
+  function applyStatsFromSnapshot(savedStats = {}) {
+    statsOrder.forEach((key) => {
+      const stat = stats[key];
+      if (!stat) {
+        return;
+      }
+      const value = Number(savedStats[key]);
+      if (Number.isFinite(value)) {
+        const clampedValue = clamp2(value, 0, stat.max);
+        stat.value = Number(clampedValue.toFixed(2));
+      } else {
+        stat.value = baseStats[key].initial;
+      }
+    });
+    updateStatsUI(stats);
+  }
+  function restoreConditionNotes(snapshot = {}) {
+    conditionNoteMap.clear();
+    const entries = Array.isArray(snapshot.conditionNotes) ? snapshot.conditionNotes : [];
+    entries.forEach((note) => {
+      if (!note || typeof note.text !== "string") {
+        return;
+      }
+      const normalized = {
+        text: note.text,
+        time: typeof note.time === "string" ? note.time : "",
+        sequence: Number.isFinite(note.sequence) ? note.sequence : 0
+      };
+      conditionNoteMap.set(note.text, normalized);
+    });
+    if (Number.isFinite(snapshot.conditionNoteSequence)) {
+      conditionNoteSequence = snapshot.conditionNoteSequence;
+    } else {
+      conditionNoteSequence = entries.reduce((max, entry) => {
+        const value = Number(entry?.sequence) || 0;
+        return Math.max(max, value);
+      }, 0);
+    }
+  }
+  function createSnapshot(metaOverrides = {}) {
+    const savedAt = (/* @__PURE__ */ new Date()).toISOString();
+    const location = locations[worldState.location];
+    const summaryParts = [
+      `Hari ${worldState.day}`,
+      formatTime(worldState.hour, worldState.minute),
+      location?.name
+    ].filter(Boolean);
+    const meta = {
+      type: metaOverrides.type || "auto",
+      source: metaOverrides.source || "auto",
+      summary: summaryParts.join(" \u2022 "),
+      day: worldState.day,
+      hour: worldState.hour,
+      minute: worldState.minute,
+      location: worldState.location,
+      savedAt
+    };
+    if (metaOverrides.note) {
+      meta.note = metaOverrides.note;
+    }
+    if (metaOverrides.label) {
+      meta.label = metaOverrides.label;
+    }
+    const snapshot = {
+      version: SNAPSHOT_VERSION,
+      savedAt,
+      meta,
+      worldState: deepClone(worldState),
+      stats: Object.fromEntries(
+        statsOrder.map((key) => [key, Number(stats[key]?.value ?? baseStats[key]?.initial ?? 0)])
+      ),
+      conditionNotes: Array.from(conditionNoteMap.values()).map((note) => ({ ...note })),
+      conditionNoteSequence,
+      showInsightsInFeedback,
+      gameEnded
+    };
+    if (currentEnding) {
+      snapshot.currentEnding = deepClone(currentEnding);
+    }
+    return snapshot;
+  }
+  function dispatchAutosaveEvent(snapshot) {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      const detail = deepClone(snapshot);
+      const event = typeof CustomEvent === "function" ? new CustomEvent("projectAscend:autosave", { detail }) : null;
+      if (event) {
+        window.dispatchEvent(event);
+      }
+    } catch (error) {
+      console.warn("Gagal mengirimkan event autosave.", error);
+    }
+  }
+  function persistAutosave(metaOverrides = {}) {
+    const overrides = { source: "auto", type: "auto", ...metaOverrides };
+    const snapshot = createSnapshot(overrides);
+    const storage = getLocalStorageSafe();
+    if (storage) {
+      try {
+        storage.setItem(AUTOSAVE_STORAGE_KEY, JSON.stringify(snapshot));
+      } catch (error) {
+        console.warn("Gagal menyimpan progres ke penyimpanan lokal.", error);
+      }
+    }
+    cachedAutosaveSnapshot = snapshot;
+    dispatchAutosaveEvent(snapshot);
+    return snapshot;
+  }
+  function getAutosaveSnapshotInternal() {
+    if (cachedAutosaveSnapshot) {
+      return deepClone(cachedAutosaveSnapshot);
+    }
+    const storage = getLocalStorageSafe();
+    if (!storage) {
+      return null;
+    }
+    try {
+      const raw = storage.getItem(AUTOSAVE_STORAGE_KEY);
+      if (!raw) {
+        return null;
+      }
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") {
+        return null;
+      }
+      if (parsed.version !== SNAPSHOT_VERSION) {
+        console.warn(
+          `Versi simpanan (${parsed.version}) tidak cocok dengan versi saat ini (${SNAPSHOT_VERSION}).`
+        );
+      }
+      cachedAutosaveSnapshot = parsed;
+      return deepClone(parsed);
+    } catch (error) {
+      console.warn("Gagal memuat simpanan otomatis.", error);
+      return null;
+    }
+  }
+  function clearAutosaveStorage() {
+    cachedAutosaveSnapshot = null;
+    const storage = getLocalStorageSafe();
+    if (!storage) {
+      return;
+    }
+    try {
+      storage.removeItem(AUTOSAVE_STORAGE_KEY);
+    } catch (error) {
+      console.warn("Gagal menghapus simpanan otomatis dari penyimpanan lokal.", error);
+    }
+  }
+  function withAutosaveSuppressed(callback) {
+    const previous = autosaveSuppressed;
+    autosaveSuppressed = true;
+    try {
+      return callback();
+    } finally {
+      autosaveSuppressed = previous;
+    }
+  }
+  function loadSnapshotFromData(snapshot, options = {}) {
+    if (!snapshot || typeof snapshot !== "object") {
+      throw new Error("Berkas simpanan tidak valid.");
+    }
+    if (!snapshot.worldState || typeof snapshot.worldState !== "object") {
+      throw new Error("Berkas simpanan tidak memuat status permainan.");
+    }
+    if (!snapshot.stats || typeof snapshot.stats !== "object") {
+      throw new Error("Berkas simpanan tidak memuat statistik karakter.");
+    }
+    const mergedWorld = mergeWorldState(snapshot.worldState);
+    const resumeSource = options.source || snapshot.meta?.source || "load";
+    const resumeType = options.type || "auto";
+    withAutosaveSuppressed(() => {
+      worldState = mergedWorld;
+      applyStatsFromSnapshot(snapshot.stats);
+      restoreConditionNotes(snapshot);
+      showInsightsInFeedback = snapshot.showInsightsInFeedback !== false;
+      gameEnded = Boolean(snapshot.gameEnded);
+      currentEnding = snapshot.currentEnding ? deepClone(snapshot.currentEnding) : null;
+      const narratives = gameEnded || resumeSource === "continue" || resumeSource === "initial" ? [] : [
+        resumeSource === "load-file" ? "Berkas simpanan berhasil dimuat. Kamu kembali ke momen terakhir yang terekam." : "Kamu melanjutkan progres terakhir yang tersimpan."
+      ];
+      renderScene(narratives, []);
+    });
+    cachedAutosaveSnapshot = null;
+    return persistAutosave({ source: resumeSource, type: resumeType });
+  }
+  function startNewSession(metaOverrides = {}) {
+    cachedAutosaveSnapshot = null;
+    withAutosaveSuppressed(() => {
+      resetGame();
+    });
+    return persistAutosave({ source: "new-game", type: "auto", ...metaOverrides });
   }
   function resetStats() {
     statsOrder.forEach((key) => {
@@ -3918,6 +4171,9 @@ var GameApp = (() => {
         storyElement.focus();
       }
     }
+    if (!autosaveSuppressed) {
+      persistAutosave();
+    }
   }
   function describeCollectorDeadline() {
     if (worldState.flags.collectorUltimatum) {
@@ -4175,14 +4431,325 @@ var GameApp = (() => {
     toggleStatsButton.textContent = statsPanelVisible ? "Sembunyikan Stat Karakter" : "Tampilkan Stat Karakter";
   }
 
+  // scripts/ui/startScreen.js
+  var DATE_FORMAT = new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "long",
+    timeStyle: "short"
+  });
+  function formatSavedAt(value) {
+    if (!value) {
+      return null;
+    }
+    try {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return null;
+      }
+      return DATE_FORMAT.format(date);
+    } catch (error) {
+      console.warn("Gagal memformat waktu simpanan.", error);
+      return null;
+    }
+  }
+  function setHtmlOverlayState(visible) {
+    if (visible) {
+      document.documentElement.setAttribute("data-start-screen", "visible");
+    } else {
+      document.documentElement.removeAttribute("data-start-screen");
+    }
+  }
+  function updateStatusDisplay(statusElement, snapshot) {
+    if (!statusElement) {
+      return;
+    }
+    if (!snapshot) {
+      statusElement.textContent = "Belum ada progres tersimpan. Mulai permainan baru untuk memulai perjalananmu.";
+      return;
+    }
+    const summary = snapshot.meta?.summary || "Progres tersimpan ditemukan.";
+    const savedAt = formatSavedAt(snapshot.savedAt || snapshot.meta?.savedAt);
+    if (savedAt) {
+      statusElement.textContent = `${summary}
+Terakhir diperbarui ${savedAt}`;
+    } else {
+      statusElement.textContent = summary;
+    }
+  }
+  function updateContinueState(button, snapshot) {
+    if (!button) {
+      return;
+    }
+    if (snapshot) {
+      button.disabled = false;
+      button.removeAttribute("aria-disabled");
+    } else {
+      button.disabled = true;
+      button.setAttribute("aria-disabled", "true");
+    }
+  }
+  function clearMessage(messageElement) {
+    if (messageElement) {
+      messageElement.textContent = "";
+    }
+  }
+  function setMessage(messageElement, text) {
+    if (messageElement) {
+      messageElement.textContent = text;
+    }
+  }
+  function focusElement(element) {
+    if (!element || typeof element.focus !== "function") {
+      return;
+    }
+    try {
+      element.focus({ preventScroll: true });
+    } catch (error) {
+      element.focus();
+    }
+  }
+  function readSnapshotFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.addEventListener("error", () => {
+        reject(new Error("Gagal membaca berkas simpanan."));
+      });
+      reader.addEventListener("load", () => {
+        try {
+          const data = JSON.parse(reader.result);
+          resolve(data);
+        } catch (error) {
+          reject(new Error("Format berkas tidak valid atau rusak."));
+        }
+      });
+      reader.readAsText(file);
+    });
+  }
+  function setupStartScreen(controller) {
+    if (!controller) {
+      return;
+    }
+    const startScreen = document.getElementById("startScreen");
+    const appShell = document.getElementById("appShell");
+    const newGameButton = document.getElementById("startNewGame");
+    const continueButton = document.getElementById("startContinue");
+    const loadButton = document.getElementById("startLoad");
+    const fileInput = document.getElementById("startLoadInput");
+    const statusElement = document.getElementById("startScreenStatus");
+    const messageElement = document.getElementById("startScreenMessage");
+    if (!startScreen || !appShell) {
+      return;
+    }
+    function hideStartScreen() {
+      setHtmlOverlayState(false);
+      startScreen.hidden = true;
+      appShell.removeAttribute("aria-hidden");
+      clearMessage(messageElement);
+    }
+    function showStartScreen() {
+      setHtmlOverlayState(true);
+      startScreen.hidden = false;
+      appShell.setAttribute("aria-hidden", "true");
+      focusElement(newGameButton);
+    }
+    function refreshAutosaveInfo() {
+      const snapshot = controller.getCachedSnapshot?.();
+      updateStatusDisplay(statusElement, snapshot);
+      updateContinueState(continueButton, snapshot);
+      return snapshot;
+    }
+    async function startNewGame() {
+      clearMessage(messageElement);
+      try {
+        controller.startNewGame?.();
+        hideStartScreen();
+      } catch (error) {
+        console.error("Gagal memulai permainan baru.", error);
+        setMessage(messageElement, "Terjadi masalah saat memulai permainan baru.");
+      }
+    }
+    async function continueGame() {
+      clearMessage(messageElement);
+      const snapshot = controller.getCachedSnapshot?.();
+      if (!snapshot) {
+        setMessage(messageElement, "Tidak ditemukan simpanan otomatis untuk dilanjutkan.");
+        refreshAutosaveInfo();
+        return;
+      }
+      try {
+        controller.loadSnapshot?.(snapshot, { source: "continue" });
+        hideStartScreen();
+      } catch (error) {
+        console.error("Gagal memuat simpanan otomatis.", error);
+        setMessage(messageElement, error?.message || "Simpan otomatis tidak dapat dimuat.");
+        refreshAutosaveInfo();
+      }
+    }
+    async function handleFileSelection(event) {
+      const [file] = event.target.files || [];
+      event.target.value = "";
+      if (!file) {
+        return;
+      }
+      clearMessage(messageElement);
+      setMessage(messageElement, `Memuat ${file.name}\u2026`);
+      try {
+        const data = await readSnapshotFile(file);
+        controller.loadSnapshot?.(data, { source: "load-file" });
+        hideStartScreen();
+        setTimeout(() => {
+          setMessage(messageElement, "");
+        }, 0);
+      } catch (error) {
+        console.error("Gagal memuat berkas simpanan.", error);
+        setMessage(messageElement, error?.message || "Berkas simpanan tidak valid.");
+        refreshAutosaveInfo();
+      }
+    }
+    function handleLoadClick() {
+      clearMessage(messageElement);
+      if (fileInput) {
+        fileInput.click();
+      }
+    }
+    if (newGameButton) {
+      newGameButton.addEventListener("click", startNewGame);
+    }
+    if (continueButton) {
+      continueButton.addEventListener("click", continueGame);
+    }
+    if (loadButton && fileInput) {
+      loadButton.addEventListener("click", handleLoadClick);
+      fileInput.addEventListener("change", handleFileSelection);
+    }
+    window.addEventListener("projectAscend:autosave", () => {
+      const snapshot = refreshAutosaveInfo();
+      if (!startScreen.hidden && snapshot) {
+        clearMessage(messageElement);
+      }
+    });
+    refreshAutosaveInfo();
+    showStartScreen();
+  }
+
+  // scripts/ui/saveControls.js
+  var DATE_FORMAT2 = new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "long",
+    timeStyle: "short"
+  });
+  function formatSavedAt2(value) {
+    if (!value) {
+      return null;
+    }
+    try {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return null;
+      }
+      return DATE_FORMAT2.format(date);
+    } catch (error) {
+      console.warn("Gagal memformat waktu simpanan.", error);
+      return null;
+    }
+  }
+  function formatStatus(snapshot) {
+    if (!snapshot) {
+      return "Belum ada simpanan otomatis.";
+    }
+    const savedAt = formatSavedAt2(snapshot.savedAt || snapshot.meta?.savedAt);
+    const summary = snapshot.meta?.summary;
+    if (savedAt && summary) {
+      return `Simpan otomatis ${savedAt} \u2022 ${summary}`;
+    }
+    if (savedAt) {
+      return `Simpan otomatis ${savedAt}.`;
+    }
+    if (summary) {
+      return `Simpan otomatis: ${summary}.`;
+    }
+    return "Progres otomatis telah disimpan.";
+  }
+  function getFileName(snapshot) {
+    const source = snapshot?.meta?.type === "manual" ? "manual" : "autosave";
+    const timestamp = snapshot?.savedAt || (/* @__PURE__ */ new Date()).toISOString();
+    const date = new Date(timestamp);
+    const pad = (value) => String(value).padStart(2, "0");
+    const stamp = Number.isNaN(date.getTime()) ? "unknown" : `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(
+      date.getMinutes()
+    )}${pad(date.getSeconds())}`;
+    return `project-ascend-${source}-${stamp}.json`;
+  }
+  function triggerDownload(snapshot) {
+    try {
+      const data = JSON.stringify(snapshot, null, 2);
+      const blob = new Blob([data], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = getFileName(snapshot);
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 0);
+      return anchor.download;
+    } catch (error) {
+      console.error("Gagal membuat berkas unduhan.", error);
+      throw new Error("Gagal membuat berkas simpanan.");
+    }
+  }
+  function updateStatus(statusElement, snapshot) {
+    if (!statusElement) {
+      return;
+    }
+    statusElement.textContent = formatStatus(snapshot);
+  }
+  function setupSaveControls(controller) {
+    if (!controller) {
+      return;
+    }
+    const button = document.getElementById("manualSaveButton");
+    const statusElement = document.getElementById("saveStatus");
+    if (statusElement) {
+      updateStatus(statusElement, controller.getCachedSnapshot?.());
+    }
+    if (button) {
+      button.addEventListener("click", () => {
+        try {
+          const snapshot = controller.getSnapshot?.({
+            type: "manual",
+            source: "manual-save"
+          });
+          if (!snapshot) {
+            throw new Error("Snapshot tidak tersedia.");
+          }
+          const fileName = triggerDownload(snapshot);
+          if (statusElement) {
+            statusElement.textContent = `Berkas simpanan diunduh: ${fileName}`;
+          }
+        } catch (error) {
+          console.error("Gagal menyiapkan unduhan simpanan.", error);
+          if (statusElement) {
+            statusElement.textContent = error?.message || "Gagal mengunduh simpanan.";
+          }
+        }
+      });
+    }
+    window.addEventListener("projectAscend:autosave", (event) => {
+      updateStatus(statusElement, event.detail || controller.getCachedSnapshot?.());
+    });
+  }
+
   // scripts/main.js
-  function startGame() {
-    initializeGame();
+  function startApp() {
+    const controller = initializeGame({ autoStart: false });
+    setupSaveControls(controller);
+    setupStartScreen(controller);
   }
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", startGame, { once: true });
+    document.addEventListener("DOMContentLoaded", startApp, { once: true });
   } else {
-    startGame();
+    startApp();
   }
   return __toCommonJS(main_exports);
 })();
