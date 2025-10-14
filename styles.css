@@ -199,6 +199,91 @@ body.modal-open {
   min-height: calc(100vh - 4.5rem);
 }
 
+html[data-start-screen="visible"] .app-shell {
+  filter: blur(3px);
+  pointer-events: none;
+  user-select: none;
+}
+
+.start-screen {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: rgba(12, 21, 32, 0.8);
+  backdrop-filter: blur(6px);
+  z-index: 50;
+}
+
+html[data-start-screen="visible"] .start-screen {
+  display: flex;
+}
+
+.start-screen__panel {
+  max-width: 480px;
+  width: 100%;
+  background: rgba(9, 17, 26, 0.95);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 18px;
+  padding: 2.5rem 2.25rem;
+  box-shadow: 0 28px 64px rgba(8, 47, 73, 0.45);
+}
+
+.start-screen__title {
+  margin: 0 0 0.75rem;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-align: center;
+}
+
+.start-screen__subtitle {
+  margin: 0 0 1.75rem;
+  color: rgba(224, 242, 254, 0.86);
+  text-align: center;
+  line-height: 1.6;
+}
+
+.start-screen__status {
+  margin: 0 0 1.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background: rgba(14, 165, 233, 0.12);
+  color: rgba(125, 211, 252, 0.94);
+  font-size: 0.95rem;
+  text-align: center;
+  white-space: pre-line;
+}
+
+.start-screen__actions {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.start-screen__message {
+  margin: 0;
+  min-height: 1.25rem;
+  font-size: 0.9rem;
+  color: rgba(250, 204, 21, 0.92);
+  text-align: center;
+}
+
+.save-status {
+  margin: 0.75rem 0 0;
+  color: rgba(191, 219, 254, 0.85);
+  font-size: 0.85rem;
+  min-height: 1.2rem;
+}
+
+@media (min-width: 600px) {
+  .start-screen__actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 .app-header {
   display: flex;
   align-items: flex-start;
@@ -592,6 +677,23 @@ body.modal-open {
   align-items: flex-start;
   gap: 0.4rem;
   line-height: 1.4;
+}
+
+.button.accent {
+  background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+  color: #031b2b;
+  font-weight: 600;
+}
+
+.button.accent:hover,
+.button.accent:focus-visible {
+  background: linear-gradient(135deg, #0ea5e9, #0284c7);
+  color: #f0f9ff;
+}
+
+.button.accent:active {
+  background: #0369a1;
+  color: #e0f2fe;
 }
 
 .button:hover,

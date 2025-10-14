@@ -24,6 +24,12 @@ const conditionNoteMap = new Map();
 let conditionNoteSequence = 0;
 let showInsightsInFeedback = true;
 
+const AUTOSAVE_STORAGE_KEY = "project-ascend:autosave";
+const SNAPSHOT_VERSION = 1;
+
+let autosaveSuppressed = false;
+let cachedAutosaveSnapshot = null;
+
 let statsElement;
 let statusSummaryElement;
 let statusHeadingTitleElement;
@@ -196,7 +202,7 @@ function handleToggleStatsClick(event) {
 
 function handleRestartClick(event) {
   event?.preventDefault?.();
-  resetGame();
+  startNewSession();
 }
 
 function disableControl(button, message) {
@@ -212,7 +218,7 @@ function disableControl(button, message) {
   }
 }
 
-export function initializeGame() {
+export function initializeGame(options = {}) {
   detachUiHandlers();
 
   statsElement = document.getElementById("stats");
@@ -270,7 +276,27 @@ export function initializeGame() {
 
   ensureChoiceHotkeyListener();
   updateHeaderBadges();
-  resetGame();
+
+  const controller = {
+    startNewGame: (meta) => startNewSession(meta),
+    loadSnapshot: (snapshot, loadOptions) => loadSnapshotFromData(snapshot, loadOptions),
+    getSnapshot: (meta) => createSnapshot(meta),
+    getCachedSnapshot: () => getAutosaveSnapshotInternal(),
+    clearAutosave: () => clearAutosaveStorage(),
+  };
+
+  if (options.initialSnapshot) {
+    try {
+      controller.loadSnapshot(options.initialSnapshot, { source: "initial" });
+    } catch (error) {
+      console.error("Gagal memuat snapshot awal.", error);
+      controller.startNewGame();
+    }
+  } else if (options.autoStart !== false) {
+    controller.startNewGame();
+  }
+
+  return controller;
 }
 
 function buildMetadata() {
@@ -359,6 +385,265 @@ function createInitialWorldState() {
       pawnedJewelry: false,
     },
   };
+}
+
+function getLocalStorageSafe() {
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      return window.localStorage;
+    }
+  } catch (error) {
+    console.warn("Penyimpanan lokal tidak tersedia untuk simpanan otomatis.", error);
+  }
+  return null;
+}
+
+function deepClone(value) {
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+  if (typeof structuredClone === "function") {
+    try {
+      return structuredClone(value);
+    } catch (error) {
+      // Fallback akan ditangani di bawah.
+    }
+  }
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (error) {
+    console.warn("Gagal melakukan kloning mendalam pada nilai.", error);
+    return value;
+  }
+}
+
+function mergeWorldState(savedWorld = {}) {
+  const base = createInitialWorldState();
+  const clone = typeof savedWorld === "object" && savedWorld ? deepClone(savedWorld) : {};
+  const merged = { ...base, ...clone };
+  merged.flags = { ...base.flags, ...(clone.flags || {}) };
+  if (!merged.flags.triggeredEvents) {
+    merged.flags.triggeredEvents = {};
+  }
+  return merged;
+}
+
+function applyStatsFromSnapshot(savedStats = {}) {
+  statsOrder.forEach((key) => {
+    const stat = stats[key];
+    if (!stat) {
+      return;
+    }
+    const value = Number(savedStats[key]);
+    if (Number.isFinite(value)) {
+      const clampedValue = clamp(value, 0, stat.max);
+      stat.value = Number(clampedValue.toFixed(2));
+    } else {
+      stat.value = baseStats[key].initial;
+    }
+  });
+  updateStatsUI(stats);
+}
+
+function restoreConditionNotes(snapshot = {}) {
+  conditionNoteMap.clear();
+  const entries = Array.isArray(snapshot.conditionNotes) ? snapshot.conditionNotes : [];
+  entries.forEach((note) => {
+    if (!note || typeof note.text !== "string") {
+      return;
+    }
+    const normalized = {
+      text: note.text,
+      time: typeof note.time === "string" ? note.time : "",
+      sequence: Number.isFinite(note.sequence) ? note.sequence : 0,
+    };
+    conditionNoteMap.set(note.text, normalized);
+  });
+  if (Number.isFinite(snapshot.conditionNoteSequence)) {
+    conditionNoteSequence = snapshot.conditionNoteSequence;
+  } else {
+    conditionNoteSequence = entries.reduce((max, entry) => {
+      const value = Number(entry?.sequence) || 0;
+      return Math.max(max, value);
+    }, 0);
+  }
+}
+
+function createSnapshot(metaOverrides = {}) {
+  const savedAt = new Date().toISOString();
+  const location = locations[worldState.location];
+  const summaryParts = [
+    `Hari ${worldState.day}`,
+    formatTime(worldState.hour, worldState.minute),
+    location?.name,
+  ].filter(Boolean);
+  const meta = {
+    type: metaOverrides.type || "auto",
+    source: metaOverrides.source || "auto",
+    summary: summaryParts.join(" • "),
+    day: worldState.day,
+    hour: worldState.hour,
+    minute: worldState.minute,
+    location: worldState.location,
+    savedAt,
+  };
+  if (metaOverrides.note) {
+    meta.note = metaOverrides.note;
+  }
+  if (metaOverrides.label) {
+    meta.label = metaOverrides.label;
+  }
+
+  const snapshot = {
+    version: SNAPSHOT_VERSION,
+    savedAt,
+    meta,
+    worldState: deepClone(worldState),
+    stats: Object.fromEntries(
+      statsOrder.map((key) => [key, Number(stats[key]?.value ?? baseStats[key]?.initial ?? 0)]),
+    ),
+    conditionNotes: Array.from(conditionNoteMap.values()).map((note) => ({ ...note })),
+    conditionNoteSequence,
+    showInsightsInFeedback,
+    gameEnded,
+  };
+  if (currentEnding) {
+    snapshot.currentEnding = deepClone(currentEnding);
+  }
+  return snapshot;
+}
+
+function dispatchAutosaveEvent(snapshot) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    const detail = deepClone(snapshot);
+    const event =
+      typeof CustomEvent === "function"
+        ? new CustomEvent("projectAscend:autosave", { detail })
+        : null;
+    if (event) {
+      window.dispatchEvent(event);
+    }
+  } catch (error) {
+    console.warn("Gagal mengirimkan event autosave.", error);
+  }
+}
+
+function persistAutosave(metaOverrides = {}) {
+  const overrides = { source: "auto", type: "auto", ...metaOverrides };
+  const snapshot = createSnapshot(overrides);
+  const storage = getLocalStorageSafe();
+  if (storage) {
+    try {
+      storage.setItem(AUTOSAVE_STORAGE_KEY, JSON.stringify(snapshot));
+    } catch (error) {
+      console.warn("Gagal menyimpan progres ke penyimpanan lokal.", error);
+    }
+  }
+  cachedAutosaveSnapshot = snapshot;
+  dispatchAutosaveEvent(snapshot);
+  return snapshot;
+}
+
+function getAutosaveSnapshotInternal() {
+  if (cachedAutosaveSnapshot) {
+    return deepClone(cachedAutosaveSnapshot);
+  }
+  const storage = getLocalStorageSafe();
+  if (!storage) {
+    return null;
+  }
+  try {
+    const raw = storage.getItem(AUTOSAVE_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+    if (parsed.version !== SNAPSHOT_VERSION) {
+      console.warn(
+        `Versi simpanan (${parsed.version}) tidak cocok dengan versi saat ini (${SNAPSHOT_VERSION}).`,
+      );
+    }
+    cachedAutosaveSnapshot = parsed;
+    return deepClone(parsed);
+  } catch (error) {
+    console.warn("Gagal memuat simpanan otomatis.", error);
+    return null;
+  }
+}
+
+function clearAutosaveStorage() {
+  cachedAutosaveSnapshot = null;
+  const storage = getLocalStorageSafe();
+  if (!storage) {
+    return;
+  }
+  try {
+    storage.removeItem(AUTOSAVE_STORAGE_KEY);
+  } catch (error) {
+    console.warn("Gagal menghapus simpanan otomatis dari penyimpanan lokal.", error);
+  }
+}
+
+function withAutosaveSuppressed(callback) {
+  const previous = autosaveSuppressed;
+  autosaveSuppressed = true;
+  try {
+    return callback();
+  } finally {
+    autosaveSuppressed = previous;
+  }
+}
+
+function loadSnapshotFromData(snapshot, options = {}) {
+  if (!snapshot || typeof snapshot !== "object") {
+    throw new Error("Berkas simpanan tidak valid.");
+  }
+  if (!snapshot.worldState || typeof snapshot.worldState !== "object") {
+    throw new Error("Berkas simpanan tidak memuat status permainan.");
+  }
+  if (!snapshot.stats || typeof snapshot.stats !== "object") {
+    throw new Error("Berkas simpanan tidak memuat statistik karakter.");
+  }
+
+  const mergedWorld = mergeWorldState(snapshot.worldState);
+  const resumeSource = options.source || snapshot.meta?.source || "load";
+  const resumeType = options.type || "auto";
+
+  withAutosaveSuppressed(() => {
+    worldState = mergedWorld;
+    applyStatsFromSnapshot(snapshot.stats);
+    restoreConditionNotes(snapshot);
+    showInsightsInFeedback = snapshot.showInsightsInFeedback !== false;
+    gameEnded = Boolean(snapshot.gameEnded);
+    currentEnding = snapshot.currentEnding ? deepClone(snapshot.currentEnding) : null;
+
+    const narratives =
+      gameEnded || resumeSource === "continue" || resumeSource === "initial"
+        ? []
+        : [
+            resumeSource === "load-file"
+              ? "Berkas simpanan berhasil dimuat. Kamu kembali ke momen terakhir yang terekam."
+              : "Kamu melanjutkan progres terakhir yang tersimpan.",
+          ];
+    renderScene(narratives, []);
+  });
+
+  cachedAutosaveSnapshot = null;
+  return persistAutosave({ source: resumeSource, type: resumeType });
+}
+
+function startNewSession(metaOverrides = {}) {
+  cachedAutosaveSnapshot = null;
+  withAutosaveSuppressed(() => {
+    resetGame();
+  });
+  return persistAutosave({ source: "new-game", type: "auto", ...metaOverrides });
 }
 
 function resetStats() {
@@ -1243,6 +1528,10 @@ function renderScene(narratives = [], changeRecords = []) {
     } catch (error) {
       storyElement.focus();
     }
+  }
+
+  if (!autosaveSuppressed) {
+    persistAutosave();
   }
 }
 
