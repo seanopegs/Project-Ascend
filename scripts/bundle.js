@@ -1019,6 +1019,43 @@ var GameApp = (() => {
         state.flags.nextCollectorVisit = { day: state.day, hour: Math.min(state.hour + 3, 20) };
         return "Ini peringatan terakhir sebelum mereka membawa paksa barang dari rumah.";
       }
+    },
+    {
+      id: "collectorDefaultJudgement",
+      condition: (state) => state.day >= 7 && state.debt >= 3e7 && !state.flags.collectorDefaultJudgement,
+      narrative: () => "Seorang petugas kelurahan mengantar surat penetapan wanprestasi. Pengadilan memberi tenggat 48 jam untuk menyetor minimal lima belas juta sebelum juru sita turun tangan.",
+      baseEffects: { willpower: -2, awareness: 1 },
+      statusChanges: { stress: 12, trauma: 6 },
+      after: (state) => {
+        state.flags.collectorDefaultJudgement = true;
+        state.flags.safeWithSupport = false;
+        state.flags.collectorUltimatum = true;
+        state.flags.defaultJudgementDeadline = { day: state.day + 2, hour: 12 };
+        state.flags.nextCollectorVisit = { day: state.day + 1, hour: 8 };
+        return "Surat itu jelas: tanpa transfer besar dalam dua hari, penyitaan paksa akan dimulai.";
+      }
+    },
+    {
+      id: "collectorDefaultRaid",
+      condition: (state) => {
+        const deadline = state.flags.defaultJudgementDeadline;
+        if (!deadline || state.debt <= 0 || state.flags.collectorDefaultRaid) return false;
+        if (state.day > deadline.day) return true;
+        if (state.day === deadline.day && state.hour >= deadline.hour) return true;
+        return false;
+      },
+      narrative: () => "Truk bak terbuka dan dua petugas berseragam tiba. Mereka menunjukkan salinan penetapan dan mulai mengangkut peralatan elektronik tanpa menunggu persetujuanmu.",
+      statusChanges: (state) => {
+        const confiscatedCash = Math.min(state.money, 3e6);
+        return { money: -confiscatedCash, debt: 5e6, stress: 18, trauma: 9, fatherHealth: -10 };
+      },
+      after: (state) => {
+        state.flags.collectorDefaultRaid = true;
+        state.flags.defaultJudgementDeadline = null;
+        state.flags.safeWithSupport = false;
+        state.flags.forcedEviction = true;
+        return "Rumah porak-poranda dan Ayah terguncang. Tanpa solusi cepat, tidak ada lagi yang bisa kamu pertahankan.";
+      }
     }
   ];
   var randomEvents = [
@@ -4365,6 +4402,13 @@ var GameApp = (() => {
     renderScene(narratives, changeRecords);
   }
   function checkEndConditions() {
+    if (worldState.flags.forcedEviction) {
+      return {
+        label: "Akhir: Penyitaan Paksa",
+        narrative: "Ketika juru sita mengangkut perabot dan peralatan, kamu tidak lagi mampu melindungi rumah maupun Ayah. Penagih resmi menyita asetmu karena cicilan besar tak pernah dibayar.",
+        statusChanges: { stress: 15, trauma: 12 }
+      };
+    }
     if (worldState.fatherHealth <= 5) {
       return {
         label: "Akhir: Ayah Kolaps",
@@ -4437,6 +4481,22 @@ var GameApp = (() => {
         title: "Ancaman Hukum",
         time: "Hari 3 pukul 09.00",
         description: "Surat peringatan akan datang kecuali kamu bisa menunjukkan pembayaran minimal Rp5.000.000."
+      });
+    }
+    if (worldState.debt >= 3e7 && !worldState.flags.collectorDefaultJudgement && worldState.day <= 7) {
+      entries.push({
+        title: "Sidang Wanprestasi",
+        time: "Hari 7 pukul 08.00",
+        description: "Koperasi menyiapkan penetapan wanprestasi. Jika tidak ada pembayaran besar, juru sita dapat turun tangan dua hari kemudian."
+      });
+    }
+    if (worldState.flags.collectorDefaultJudgement && !worldState.flags.collectorDefaultRaid && worldState.flags.defaultJudgementDeadline) {
+      const deadline = worldState.flags.defaultJudgementDeadline;
+      const hourText = String(deadline.hour).padStart(2, "0");
+      entries.push({
+        title: "Batas Penetapan Pengadilan",
+        time: `Hari ${deadline.day} pukul ${hourText}.00`,
+        description: "Tanpa transfer minimal Rp15.000.000 sebelum tenggat ini, penyitaan resmi akan dimulai dan tidak bisa dibatalkan."
       });
     }
     if (worldState.flags.debtCollectorKnock && !worldState.flags.collectorAccountFreeze && worldState.day <= 3 && totalPaid < 7e6) {

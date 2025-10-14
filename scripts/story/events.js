@@ -262,6 +262,48 @@ export const scheduledEvents = [
       return "Ini peringatan terakhir sebelum mereka membawa paksa barang dari rumah.";
     },
   },
+  {
+    id: "collectorDefaultJudgement",
+    condition: (state) =>
+      state.day >= 7 &&
+      state.debt >= 30_000_000 &&
+      !state.flags.collectorDefaultJudgement,
+    narrative: () =>
+      "Seorang petugas kelurahan mengantar surat penetapan wanprestasi. Pengadilan memberi tenggat 48 jam untuk menyetor minimal lima belas juta sebelum juru sita turun tangan.",
+    baseEffects: { willpower: -2, awareness: 1 },
+    statusChanges: { stress: 12, trauma: 6 },
+    after: (state) => {
+      state.flags.collectorDefaultJudgement = true;
+      state.flags.safeWithSupport = false;
+      state.flags.collectorUltimatum = true;
+      state.flags.defaultJudgementDeadline = { day: state.day + 2, hour: 12 };
+      state.flags.nextCollectorVisit = { day: state.day + 1, hour: 8 };
+      return "Surat itu jelas: tanpa transfer besar dalam dua hari, penyitaan paksa akan dimulai.";
+    },
+  },
+  {
+    id: "collectorDefaultRaid",
+    condition: (state) => {
+      const deadline = state.flags.defaultJudgementDeadline;
+      if (!deadline || state.debt <= 0 || state.flags.collectorDefaultRaid) return false;
+      if (state.day > deadline.day) return true;
+      if (state.day === deadline.day && state.hour >= deadline.hour) return true;
+      return false;
+    },
+    narrative: () =>
+      "Truk bak terbuka dan dua petugas berseragam tiba. Mereka menunjukkan salinan penetapan dan mulai mengangkut peralatan elektronik tanpa menunggu persetujuanmu.",
+    statusChanges: (state) => {
+      const confiscatedCash = Math.min(state.money, 3_000_000);
+      return { money: -confiscatedCash, debt: 5_000_000, stress: 18, trauma: 9, fatherHealth: -10 };
+    },
+    after: (state) => {
+      state.flags.collectorDefaultRaid = true;
+      state.flags.defaultJudgementDeadline = null;
+      state.flags.safeWithSupport = false;
+      state.flags.forcedEviction = true;
+      return "Rumah porak-poranda dan Ayah terguncang. Tanpa solusi cepat, tidak ada lagi yang bisa kamu pertahankan.";
+    },
+  },
 ];
 
 export const randomEvents = [

@@ -1759,6 +1759,15 @@ function moveTo(target) {
 }
 
 function checkEndConditions() {
+  if (worldState.flags.forcedEviction) {
+    return {
+      label: "Akhir: Penyitaan Paksa",
+      narrative:
+        "Ketika juru sita mengangkut perabot dan peralatan, kamu tidak lagi mampu melindungi rumah maupun Ayah. Penagih resmi menyita asetmu karena cicilan besar tak pernah dibayar.",
+      statusChanges: { stress: 15, trauma: 12 },
+    };
+  }
+
   if (worldState.fatherHealth <= 5) {
     return {
       label: "Akhir: Ayah Kolaps",
@@ -1858,6 +1867,34 @@ function buildJournalEntries() {
       time: "Hari 3 pukul 09.00",
       description:
         "Surat peringatan akan datang kecuali kamu bisa menunjukkan pembayaran minimal Rp5.000.000.",
+    });
+  }
+
+  if (
+    worldState.debt >= 30_000_000 &&
+    !worldState.flags.collectorDefaultJudgement &&
+    worldState.day <= 7
+  ) {
+    entries.push({
+      title: "Sidang Wanprestasi",
+      time: "Hari 7 pukul 08.00",
+      description:
+        "Koperasi menyiapkan penetapan wanprestasi. Jika tidak ada pembayaran besar, juru sita dapat turun tangan dua hari kemudian.",
+    });
+  }
+
+  if (
+    worldState.flags.collectorDefaultJudgement &&
+    !worldState.flags.collectorDefaultRaid &&
+    worldState.flags.defaultJudgementDeadline
+  ) {
+    const deadline = worldState.flags.defaultJudgementDeadline;
+    const hourText = String(deadline.hour).padStart(2, "0");
+    entries.push({
+      title: "Batas Penetapan Pengadilan",
+      time: `Hari ${deadline.day} pukul ${hourText}.00`,
+      description:
+        "Tanpa transfer minimal Rp15.000.000 sebelum tenggat ini, penyitaan resmi akan dimulai dan tidak bisa dibatalkan.",
     });
   }
 
