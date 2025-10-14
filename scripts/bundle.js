@@ -2839,6 +2839,10 @@ var GameApp = (() => {
   var showInsightsInFeedback = true;
   var AUTOSAVE_STORAGE_KEY = "project-ascend:autosave";
   var SNAPSHOT_VERSION = 1;
+  var STORAGE_FALLBACK_NOTICES = /* @__PURE__ */ new Set();
+  var cachedLocalStorage;
+  var cachedSessionStorage;
+  var fallbackMemoryStorage = null;
   var autosaveSuppressed = false;
   var cachedAutosaveSnapshot = null;
   var statsElement;
@@ -3159,15 +3163,51 @@ var GameApp = (() => {
       }
     };
   }
-  function getLocalStorageSafe() {
-    try {
-      if (typeof window !== "undefined" && window.localStorage) {
-        return window.localStorage;
-      }
-    } catch (error) {
-      console.warn("Penyimpanan lokal tidak tersedia untuk simpanan otomatis.", error);
+  function getBrowserStorageSafe(type) {
+    if (typeof window === "undefined") {
+      return null;
     }
-    return null;
+    try {
+      return window[type] || null;
+    } catch (error) {
+      const label = type === "sessionStorage" ? "penyimpanan sesi" : "penyimpanan lokal";
+      console.warn(`${label} tidak tersedia untuk simpanan otomatis.`, error);
+      return null;
+    }
+  }
+  function getLocalStorageSafe() {
+    if (cachedLocalStorage === void 0) {
+      cachedLocalStorage = getBrowserStorageSafe("localStorage");
+    }
+    return cachedLocalStorage || null;
+  }
+  function getSessionStorageSafe() {
+    if (cachedSessionStorage === void 0) {
+      cachedSessionStorage = getBrowserStorageSafe("sessionStorage");
+    }
+    return cachedSessionStorage || null;
+  }
+  function getMemoryStorage(createIfMissing = true) {
+    if (!fallbackMemoryStorage && createIfMissing) {
+      const store = /* @__PURE__ */ new Map();
+      fallbackMemoryStorage = {
+        getItem: (key) => store.has(key) ? store.get(key) : null,
+        setItem: (key, value) => {
+          store.set(key, String(value));
+        },
+        removeItem: (key) => {
+          store.delete(key);
+        }
+      };
+    }
+    return fallbackMemoryStorage;
+  }
+  function notifyStorageFallback(type, message) {
+    if (STORAGE_FALLBACK_NOTICES.has(type)) {
+      return;
+    }
+    console.info(message);
+    STORAGE_FALLBACK_NOTICES.add(type);
   }
   function deepClone(value) {
     if (value === null || typeof value !== "object") {
@@ -3294,57 +3334,126 @@ var GameApp = (() => {
   function persistAutosave(metaOverrides = {}) {
     const overrides = { source: "auto", type: "auto", ...metaOverrides };
     const snapshot = createSnapshot(overrides);
-    const storage = getLocalStorageSafe();
-    if (storage) {
-      try {
-        storage.setItem(AUTOSAVE_STORAGE_KEY, JSON.stringify(snapshot));
-      } catch (error) {
-        console.warn("Gagal menyimpan progres ke penyimpanan lokal.", error);
+    let serialized = null;
+    try {
+      serialized = JSON.stringify(snapshot);
+    } catch (error) {
+      console.warn("Gagal mempersiapkan data simpanan otomatis.", error);
+    }
+    if (serialized) {
+      let stored = false;
+      const localStorage = getLocalStorageSafe();
+      if (localStorage) {
+        try {
+          localStorage.setItem(AUTOSAVE_STORAGE_KEY, serialized);
+          stored = true;
+        } catch (error) {
+          console.warn("Gagal menyimpan progres ke penyimpanan lokal.", error);
+        }
+      }
+      if (!stored) {
+        const sessionStorage = getSessionStorageSafe();
+        if (sessionStorage) {
+          try {
+            sessionStorage.setItem(AUTOSAVE_STORAGE_KEY, serialized);
+            stored = true;
+            notifyStorageFallback(
+              "session",
+              "Simpan otomatis menggunakan penyimpanan sesi karena penyimpanan lokal tidak tersedia."
+            );
+          } catch (error) {
+            console.warn("Gagal menyimpan progres ke penyimpanan sesi.", error);
+          }
+        }
+      }
+      if (!stored) {
+        const memoryStorage = getMemoryStorage(true);
+        try {
+          memoryStorage.setItem(AUTOSAVE_STORAGE_KEY, serialized);
+          notifyStorageFallback(
+            "memory",
+            "Simpan otomatis sementara menggunakan memori karena penyimpanan browser tidak tersedia."
+          );
+        } catch (error) {
+          console.warn("Gagal menyimpan progres ke penyimpanan sementara.", error);
+        }
       }
     }
     cachedAutosaveSnapshot = snapshot;
     dispatchAutosaveEvent(snapshot);
     return snapshot;
   }
+  function readAutosaveRaw(storage, label) {
+    if (!storage) {
+      return null;
+    }
+    try {
+      return storage.getItem(AUTOSAVE_STORAGE_KEY);
+    } catch (error) {
+      if (label) {
+        console.warn(`Gagal mengakses ${label} untuk simpanan otomatis.`, error);
+      } else {
+        console.warn("Gagal mengakses penyimpanan sementara untuk simpanan otomatis.", error);
+      }
+      return null;
+    }
+  }
   function getAutosaveSnapshotInternal() {
     if (cachedAutosaveSnapshot) {
       return deepClone(cachedAutosaveSnapshot);
     }
-    const storage = getLocalStorageSafe();
-    if (!storage) {
-      return null;
+    const candidates = [
+      { storage: getLocalStorageSafe(), label: "penyimpanan lokal" },
+      { storage: getSessionStorageSafe(), label: "penyimpanan sesi" }
+    ];
+    const memoryStorage = getMemoryStorage(false);
+    if (memoryStorage) {
+      candidates.push({ storage: memoryStorage, label: "penyimpanan sementara" });
     }
-    try {
-      const raw = storage.getItem(AUTOSAVE_STORAGE_KEY);
+    for (const { storage, label } of candidates) {
+      const raw = readAutosaveRaw(storage, label);
       if (!raw) {
-        return null;
+        continue;
       }
-      const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== "object") {
-        return null;
+      try {
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") {
+          continue;
+        }
+        if (parsed.version !== SNAPSHOT_VERSION) {
+          console.warn(
+            `Versi simpanan (${parsed.version}) tidak cocok dengan versi saat ini (${SNAPSHOT_VERSION}).`
+          );
+        }
+        cachedAutosaveSnapshot = parsed;
+        return deepClone(parsed);
+      } catch (error) {
+        console.warn(`Gagal memuat simpanan otomatis dari ${label}.`, error);
       }
-      if (parsed.version !== SNAPSHOT_VERSION) {
-        console.warn(
-          `Versi simpanan (${parsed.version}) tidak cocok dengan versi saat ini (${SNAPSHOT_VERSION}).`
-        );
-      }
-      cachedAutosaveSnapshot = parsed;
-      return deepClone(parsed);
-    } catch (error) {
-      console.warn("Gagal memuat simpanan otomatis.", error);
-      return null;
     }
+    return null;
   }
   function clearAutosaveStorage() {
     cachedAutosaveSnapshot = null;
-    const storage = getLocalStorageSafe();
-    if (!storage) {
-      return;
+    const localStorage = getLocalStorageSafe();
+    if (localStorage) {
+      try {
+        localStorage.removeItem(AUTOSAVE_STORAGE_KEY);
+      } catch (error) {
+        console.warn("Gagal menghapus simpanan otomatis dari penyimpanan lokal.", error);
+      }
     }
-    try {
-      storage.removeItem(AUTOSAVE_STORAGE_KEY);
-    } catch (error) {
-      console.warn("Gagal menghapus simpanan otomatis dari penyimpanan lokal.", error);
+    const sessionStorage = getSessionStorageSafe();
+    if (sessionStorage) {
+      try {
+        sessionStorage.removeItem(AUTOSAVE_STORAGE_KEY);
+      } catch (error) {
+        console.warn("Gagal menghapus simpanan otomatis dari penyimpanan sesi.", error);
+      }
+    }
+    const memoryStorage = getMemoryStorage(false);
+    if (memoryStorage) {
+      memoryStorage.removeItem(AUTOSAVE_STORAGE_KEY);
     }
   }
   function withAutosaveSuppressed(callback) {
