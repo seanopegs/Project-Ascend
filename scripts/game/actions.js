@@ -392,4 +392,71 @@ export const actionLibrary = {
       return "Dana segar masuk, tapi kamu berjanji menebusnya kembali suatu hari nanti.";
     },
   },
+  dudukTaman: {
+    label: "Duduk dan menenangkan diri",
+    time: 0.5,
+    traits: ["recovery", "mental"],
+    baseEffects: { willpower: 1, purity: 1 },
+    statusChanges: { stress: -8, fatigue: -2 },
+    narrative: () =>
+      "Angin malam di taman kota membantumu melupakan sejenak beban di rumah. Kamu menarik napas dalam-dalam.",
+  },
+  cariInspirasi: {
+    label: "Cari inspirasi orang lewat",
+    time: 0.5,
+    traits: ["mental", "awareness"],
+    baseEffects: { awareness: 2, ingenuity: 1 },
+    statusChanges: { stress: -4 },
+    narrative: () =>
+      "Mengamati orang-orang yang lewat memberimu perspektif baru. Hidup terus berjalan.",
+  },
+  kerjaSampingan: {
+    label: "Cari kerja serabutan",
+    time: 2,
+    traits: ["work", "physical"],
+    baseEffects: { physique: 1, networking: 1 },
+    statusChanges: { money: 150_000, fatigue: 10, stress: 5 },
+    narrative: () =>
+      "Kamu membantu bongkar muat di pasar malam dekat pusat kota. Tubuhmu pegal, tapi uang tunai di tangan cukup membantu.",
+  },
+  beliBahanMakanan: {
+    label: "Beli bahan makanan (Rp50.000)",
+    time: 0.5,
+    traits: ["care"],
+    condition: (state) => state.money >= 50_000,
+    baseEffects: { physique: 1 },
+    statusChanges: { money: -50_000, stress: -2 },
+    narrative: () =>
+      "Kamu membeli telur, beras, dan sayuran segar. Setidaknya besok Ayah bisa makan enak.",
+  },
+  beliObat: {
+    label: "Beli stok obat Ayah (Rp150.000)",
+    time: 0.5,
+    traits: ["care"],
+    condition: (state) => state.money >= 150_000,
+    baseEffects: { purity: 2 },
+    statusChanges: { money: -150_000, fatherHealth: 5, stress: -5 },
+    narrative: () =>
+      "Membeli obat cadangan membuatmu merasa lebih siap menghadapi kondisi darurat.",
+  },
+  pesanKopi: {
+    label: "Pesan kopi hitam (Rp20.000)",
+    time: 0.25,
+    traits: ["recovery"],
+    condition: (state) => state.money >= 20_000,
+    baseEffects: { awareness: 1 },
+    statusChanges: { money: -20_000, fatigue: -5, stress: -2 },
+    narrative: () =>
+      "Kafein membantu matamu tetap terbuka. Kamu siap menghadapi sisa malam ini.",
+  },
+  kerjaRemote: {
+    label: "Kerja remote di kafe",
+    time: 2,
+    traits: ["work", "mental"],
+    condition: (state) => state.money >= 20_000, // Cost of staying (coffee implied)
+    baseEffects: { ingenuity: 2, networking: 1 },
+    statusChanges: { money: 250_000, fatigue: 6, stress: 2 }, // Net profit
+    narrative: () =>
+      "Suasana kafe yang produktif membuatmu bisa menyelesaikan beberapa tugas freelance dengan cepat.",
+  },
 };
