@@ -1,4 +1,6 @@
-export const locations = {
+import { cityLocations } from "./locations/city.js";
+
+const houseLocations = {
   ruangKeluarga: {
     name: "Ruang Keluarga",
     description: (state) => {
@@ -26,7 +28,7 @@ export const locations = {
       { type: "action", id: "gadaiPerhiasan" },
       { type: "action", id: "tulisJurnal" },
     ],
-    connections: ["kamarAyah", "dapur", "halaman", "ruangKerja"],
+    connections: ["kamarAyah", "dapur", "halaman", "ruangKerja", "terasRumah"],
   },
   kamarAyah: {
     name: "Kamar Ayah",
@@ -84,7 +86,7 @@ export const locations = {
       { type: "action", id: "kunciRumah" },
       { type: "action", id: "hadapiPenagih" },
     ],
-    connections: ["ruangKeluarga"],
+    connections: ["ruangKeluarga", "terasRumah"],
   },
   ruangKerja: {
     name: "Ruang Kerja",
@@ -109,4 +111,9 @@ export const locations = {
     ],
     connections: ["ruangKeluarga"],
   },
+};
+
+export const locations = {
+  ...houseLocations,
+  ...cityLocations
 };

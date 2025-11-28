@@ -52,9 +52,23 @@ function updateContinueState(button, snapshot) {
   if (snapshot) {
     button.disabled = false;
     button.removeAttribute("aria-disabled");
+    // Make it primary
+    button.classList.add('accent');
+    // Make new game secondary
+    const newGameBtn = document.getElementById("startNewGame");
+    if (newGameBtn) {
+      newGameBtn.classList.remove('accent');
+      newGameBtn.classList.add('secondary');
+    }
   } else {
     button.disabled = true;
     button.setAttribute("aria-disabled", "true");
+    button.classList.remove('accent');
+    const newGameBtn = document.getElementById("startNewGame");
+    if (newGameBtn) {
+      newGameBtn.classList.add('accent');
+      newGameBtn.classList.remove('secondary');
+    }
   }
 }
 
@@ -166,6 +180,9 @@ export function setupStartScreen(controller) {
       refreshAutosaveInfo();
     }
   }
+
+  // Auto-load if parameter is present or if requested (we can add a query param logic later if needed)
+  // For now, we just ensure Continue is primary if available.
 
   async function handleFileSelection(event) {
     const [file] = event.target.files || [];
