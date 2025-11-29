@@ -60,9 +60,17 @@ function updateContinueButton(button, snapshot) {
   }
 
   const hasSnapshot = isValidSnapshot(snapshot);
-  button.hidden = !hasSnapshot;
-  button.toggleAttribute("disabled", !hasSnapshot);
-  button.setAttribute("aria-disabled", String(!hasSnapshot));
+  if (hasSnapshot) {
+    button.hidden = false;
+    button.removeAttribute("hidden");
+    button.disabled = false;
+    button.removeAttribute("disabled");
+    button.setAttribute("aria-disabled", "false");
+  } else {
+    button.hidden = true;
+    button.disabled = true;
+    button.setAttribute("aria-disabled", "true");
+  }
 }
 
 function clearMessage(messageElement) {
@@ -123,12 +131,16 @@ export function setupStartScreen(controller) {
   }
 
   function refreshAutosaveInfo() {
-    const snapshot = controller.getCachedSnapshot?.();
-    updateStatusDisplay(statusElement, snapshot);
-    if (continueGameButton) {
-      continueGameButton.hidden = !snapshot;
+    let snapshot = null;
+    try {
+      snapshot = controller.getCachedSnapshot?.();
+    } catch (error) {
+      console.warn("Gagal mengambil progres tersimpan.", error);
     }
-    return snapshot;
+    const validSnapshot = isValidSnapshot(snapshot) ? snapshot : null;
+    updateStatusDisplay(statusElement, validSnapshot);
+    updateContinueButton(continueGameButton, validSnapshot);
+    return validSnapshot;
   }
 
   async function startNewGame() {
@@ -146,11 +158,12 @@ export function setupStartScreen(controller) {
     clearMessage(messageElement);
     try {
       const snapshot = controller.getCachedSnapshot?.();
-      if (snapshot) {
+      if (isValidSnapshot(snapshot)) {
         controller.loadSnapshot?.(snapshot, { source: "continue" });
         hideStartScreen();
       } else {
         setMessage(messageElement, "Tidak ada data simpanan yang ditemukan.");
+        refreshAutosaveInfo();
       }
     } catch (error) {
       console.error("Gagal melanjutkan permainan.", error);
