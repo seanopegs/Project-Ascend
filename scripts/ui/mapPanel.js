@@ -1,11 +1,20 @@
 import { locations } from "../story/locations.js";
 
 const layout = [
-  { id: "halaman", label: "Halaman", row: 2, col: 1 },
-  { id: "ruangKeluarga", label: "Ruang Keluarga", row: 2, col: 2 },
-  { id: "kamarAyah", label: "Kamar Ayah", row: 1, col: 2 },
-  { id: "dapur", label: "Dapur", row: 3, col: 3 },
-  { id: "ruangKerja", label: "Ruang Kerja", row: 1, col: 3 },
+  // House
+  { id: "halaman", label: "Halaman", row: 2, col: 2 },
+  { id: "ruangKeluarga", label: "Ruang Keluarga", row: 2, col: 3 },
+  { id: "kamarAyah", label: "Kamar Ayah", row: 1, col: 3 },
+  { id: "dapur", label: "Dapur", row: 3, col: 4 },
+  { id: "ruangKerja", label: "Ruang Kerja", row: 1, col: 4 },
+
+  // Outside
+  { id: "terasRumah", label: "Teras", row: 2, col: 4 },
+  { id: "jalanRaya", label: "Jalan Raya", row: 2, col: 5 },
+  { id: "tokoKelontong", label: "Toko Kelontong", row: 1, col: 5 },
+  { id: "tamanKota", label: "Taman Kota", row: 3, col: 5 },
+  { id: "pusatKota", label: "Pusat Kota", row: 2, col: 6 },
+  { id: "cafe24Jam", label: "Kafe 24 Jam", row: 1, col: 6 },
 ];
 
 let containerRef = null;
