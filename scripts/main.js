@@ -6,7 +6,11 @@ export { initializeGame };
 
 function startApp() {
   console.log("Starting App...");
+
+  // We initialize the game but DO NOT auto-start yet.
   const controller = initializeGame({ autoStart: false });
+
+  // Setup UI components
   setupSaveControls(controller);
   setupStartScreen(controller);
 
@@ -14,18 +18,15 @@ function startApp() {
   try {
     const snapshot = controller.getCachedSnapshot();
     console.log("Checking for cached snapshot:", snapshot ? "Found" : "Not Found");
-    if (snapshot) {
-      console.log("Snapshot version:", snapshot.version);
-    }
 
+    // Check if we have a valid snapshot to resume
     if (snapshot && snapshot.savedAt && snapshot.version === 1) {
-      // The user wants the game to always save and not reset on reload.
-      // So we automatically load the snapshot if it exists.
       console.log("Auto-loading saved session...");
+
+      // Load the snapshot
       controller.loadSnapshot(snapshot, { source: "continue" });
 
-      // We also need to hide the start screen programmatically
-      // since setupStartScreen defaults to showing it.
+      // Force hide the start screen immediately
       const startScreen = document.getElementById("startScreen");
       const appShell = document.getElementById("appShell");
       if (startScreen && appShell) {
@@ -36,9 +37,13 @@ function startApp() {
       }
     } else {
       console.log("No valid snapshot found. Waiting for user input on Start Screen.");
+      // If no save exists, we just let the Start Screen stay visible.
+      // It has the "New Game" button.
     }
   } catch (e) {
     console.warn("Auto-resume check failed:", e);
+    // In case of error, ensuring start screen is visible might be good,
+    // but setupStartScreen defaults it to visible anyway.
   }
 }
 

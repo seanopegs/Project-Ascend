@@ -45,33 +45,6 @@ function updateStatusDisplay(statusElement, snapshot) {
   }
 }
 
-function updateContinueState(button, snapshot) {
-  if (!button) {
-    return;
-  }
-  if (snapshot) {
-    button.disabled = false;
-    button.removeAttribute("aria-disabled");
-    // Make it primary
-    button.classList.add('accent');
-    // Make new game secondary
-    const newGameBtn = document.getElementById("startNewGame");
-    if (newGameBtn) {
-      newGameBtn.classList.remove('accent');
-      newGameBtn.classList.add('secondary');
-    }
-  } else {
-    button.disabled = true;
-    button.setAttribute("aria-disabled", "true");
-    button.classList.remove('accent');
-    const newGameBtn = document.getElementById("startNewGame");
-    if (newGameBtn) {
-      newGameBtn.classList.add('accent');
-      newGameBtn.classList.remove('secondary');
-    }
-  }
-}
-
 function clearMessage(messageElement) {
   if (messageElement) {
     messageElement.textContent = "";
@@ -95,24 +68,6 @@ function focusElement(element) {
   }
 }
 
-function readSnapshotFile(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.addEventListener("error", () => {
-      reject(new Error("Gagal membaca berkas simpanan."));
-    });
-    reader.addEventListener("load", () => {
-      try {
-        const data = JSON.parse(reader.result);
-        resolve(data);
-      } catch (error) {
-        reject(new Error("Format berkas tidak valid atau rusak."));
-      }
-    });
-    reader.readAsText(file);
-  });
-}
-
 export function setupStartScreen(controller) {
   if (!controller) {
     return;
@@ -121,9 +76,6 @@ export function setupStartScreen(controller) {
   const startScreen = document.getElementById("startScreen");
   const appShell = document.getElementById("appShell");
   const newGameButton = document.getElementById("startNewGame");
-  const continueButton = document.getElementById("startContinue");
-  const loadButton = document.getElementById("startLoad");
-  const fileInput = document.getElementById("startLoadInput");
   const statusElement = document.getElementById("startScreenStatus");
   const messageElement = document.getElementById("startScreenMessage");
 
@@ -142,13 +94,14 @@ export function setupStartScreen(controller) {
     setHtmlOverlayState(true);
     startScreen.hidden = false;
     appShell.setAttribute("aria-hidden", "true");
-    focusElement(newGameButton);
+    if (newGameButton) {
+      focusElement(newGameButton);
+    }
   }
 
   function refreshAutosaveInfo() {
     const snapshot = controller.getCachedSnapshot?.();
     updateStatusDisplay(statusElement, snapshot);
-    updateContinueState(continueButton, snapshot);
     return snapshot;
   }
 
@@ -163,65 +116,8 @@ export function setupStartScreen(controller) {
     }
   }
 
-  async function continueGame() {
-    clearMessage(messageElement);
-    const snapshot = controller.getCachedSnapshot?.();
-    if (!snapshot) {
-      setMessage(messageElement, "Tidak ditemukan simpanan otomatis untuk dilanjutkan.");
-      refreshAutosaveInfo();
-      return;
-    }
-    try {
-      controller.loadSnapshot?.(snapshot, { source: "continue" });
-      hideStartScreen();
-    } catch (error) {
-      console.error("Gagal memuat simpanan otomatis.", error);
-      setMessage(messageElement, error?.message || "Simpan otomatis tidak dapat dimuat.");
-      refreshAutosaveInfo();
-    }
-  }
-
-  // Auto-load if parameter is present or if requested (we can add a query param logic later if needed)
-  // For now, we just ensure Continue is primary if available.
-
-  async function handleFileSelection(event) {
-    const [file] = event.target.files || [];
-    event.target.value = "";
-    if (!file) {
-      return;
-    }
-    clearMessage(messageElement);
-    setMessage(messageElement, `Memuat ${file.name}…`);
-    try {
-      const data = await readSnapshotFile(file);
-      controller.loadSnapshot?.(data, { source: "load-file" });
-      hideStartScreen();
-      setTimeout(() => {
-        setMessage(messageElement, "");
-      }, 0);
-    } catch (error) {
-      console.error("Gagal memuat berkas simpanan.", error);
-      setMessage(messageElement, error?.message || "Berkas simpanan tidak valid.");
-      refreshAutosaveInfo();
-    }
-  }
-
-  function handleLoadClick() {
-    clearMessage(messageElement);
-    if (fileInput) {
-      fileInput.click();
-    }
-  }
-
   if (newGameButton) {
     newGameButton.addEventListener("click", startNewGame);
-  }
-  if (continueButton) {
-    continueButton.addEventListener("click", continueGame);
-  }
-  if (loadButton && fileInput) {
-    loadButton.addEventListener("click", handleLoadClick);
-    fileInput.addEventListener("change", handleFileSelection);
   }
 
   window.addEventListener("projectAscend:autosave", () => {
@@ -231,6 +127,21 @@ export function setupStartScreen(controller) {
     }
   });
 
-  refreshAutosaveInfo();
+  const snapshot = refreshAutosaveInfo();
+  // IMPORTANT: The auto-load logic is now handled in main.js
+  // But if main.js FAILS to load (e.g. invalid version), we fallback here.
+  // However, we want to ensure we don't accidentally show the start screen if main.js is about to hide it.
+
+  // Actually, main.js runs AFTER startScreen setup usually, or startScreen setup is called BY main.js.
+  // In main.js: setupStartScreen is called BEFORE auto-resume check.
+  // So showStartScreen() WILL be called.
+  // Then auto-resume happens, and it hides it.
+  // This might cause a flicker.
+  // Ideally, main.js should decide whether to call setupStartScreen or just run the game.
+
+  // But to be safe and respect "everything automatic", if there is a snapshot, we could try to load it here?
+  // No, main.js logic is better for separation.
+
+  // Let's just ensure showStartScreen is called, but we know main.js will hide it immediately if save exists.
   showStartScreen();
 }
