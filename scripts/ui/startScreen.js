@@ -45,6 +45,26 @@ function updateStatusDisplay(statusElement, snapshot) {
   }
 }
 
+function isValidSnapshot(snapshot) {
+  return !!(
+    snapshot &&
+    typeof snapshot === "object" &&
+    snapshot.worldState &&
+    typeof snapshot.worldState === "object"
+  );
+}
+
+function updateContinueButton(button, snapshot) {
+  if (!button) {
+    return;
+  }
+
+  const hasSnapshot = isValidSnapshot(snapshot);
+  button.hidden = !hasSnapshot;
+  button.toggleAttribute("disabled", !hasSnapshot);
+  button.setAttribute("aria-disabled", String(!hasSnapshot));
+}
+
 function clearMessage(messageElement) {
   if (messageElement) {
     messageElement.textContent = "";
@@ -103,12 +123,16 @@ export function setupStartScreen(controller) {
   }
 
   function refreshAutosaveInfo() {
-    const snapshot = controller.getCachedSnapshot?.();
-    updateStatusDisplay(statusElement, snapshot);
-    if (continueGameButton) {
-      continueGameButton.hidden = !snapshot;
+    let snapshot = null;
+    try {
+      snapshot = controller.getCachedSnapshot?.();
+    } catch (error) {
+      console.warn("Gagal mengambil progres tersimpan.", error);
     }
-    return snapshot;
+    const validSnapshot = isValidSnapshot(snapshot) ? snapshot : null;
+    updateStatusDisplay(statusElement, validSnapshot);
+    updateContinueButton(continueGameButton, validSnapshot);
+    return validSnapshot;
   }
 
   async function startNewGame() {
@@ -126,11 +150,12 @@ export function setupStartScreen(controller) {
     clearMessage(messageElement);
     try {
       const snapshot = controller.getCachedSnapshot?.();
-      if (snapshot) {
+      if (isValidSnapshot(snapshot)) {
         controller.loadSnapshot?.(snapshot, { source: "continue" });
         hideStartScreen();
       } else {
         setMessage(messageElement, "Tidak ada data simpanan yang ditemukan.");
+        refreshAutosaveInfo();
       }
     } catch (error) {
       console.error("Gagal melanjutkan permainan.", error);
@@ -150,6 +175,7 @@ export function setupStartScreen(controller) {
     const snapshot = refreshAutosaveInfo();
     if (!startScreen.hidden && snapshot) {
       clearMessage(messageElement);
+      focusElement(continueGameButton);
     }
   });
 
