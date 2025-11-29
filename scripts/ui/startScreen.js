@@ -76,6 +76,7 @@ export function setupStartScreen(controller) {
   const startScreen = document.getElementById("startScreen");
   const appShell = document.getElementById("appShell");
   const newGameButton = document.getElementById("startNewGame");
+  const continueGameButton = document.getElementById("continueGame");
   const statusElement = document.getElementById("startScreenStatus");
   const messageElement = document.getElementById("startScreenMessage");
 
@@ -94,7 +95,9 @@ export function setupStartScreen(controller) {
     setHtmlOverlayState(true);
     startScreen.hidden = false;
     appShell.setAttribute("aria-hidden", "true");
-    if (newGameButton) {
+    if (continueGameButton && !continueGameButton.hidden) {
+      focusElement(continueGameButton);
+    } else if (newGameButton) {
       focusElement(newGameButton);
     }
   }
@@ -102,6 +105,9 @@ export function setupStartScreen(controller) {
   function refreshAutosaveInfo() {
     const snapshot = controller.getCachedSnapshot?.();
     updateStatusDisplay(statusElement, snapshot);
+    if (continueGameButton) {
+      continueGameButton.hidden = !snapshot;
+    }
     return snapshot;
   }
 
@@ -116,8 +122,28 @@ export function setupStartScreen(controller) {
     }
   }
 
+  async function continueGame() {
+    clearMessage(messageElement);
+    try {
+      const snapshot = controller.getCachedSnapshot?.();
+      if (snapshot) {
+        controller.loadSnapshot?.(snapshot, { source: "continue" });
+        hideStartScreen();
+      } else {
+        setMessage(messageElement, "Tidak ada data simpanan yang ditemukan.");
+      }
+    } catch (error) {
+      console.error("Gagal melanjutkan permainan.", error);
+      setMessage(messageElement, "Terjadi masalah saat melanjutkan permainan.");
+    }
+  }
+
   if (newGameButton) {
     newGameButton.addEventListener("click", startNewGame);
+  }
+
+  if (continueGameButton) {
+    continueGameButton.addEventListener("click", continueGame);
   }
 
   window.addEventListener("projectAscend:autosave", () => {
@@ -128,20 +154,5 @@ export function setupStartScreen(controller) {
   });
 
   const snapshot = refreshAutosaveInfo();
-  // IMPORTANT: The auto-load logic is now handled in main.js
-  // But if main.js FAILS to load (e.g. invalid version), we fallback here.
-  // However, we want to ensure we don't accidentally show the start screen if main.js is about to hide it.
-
-  // Actually, main.js runs AFTER startScreen setup usually, or startScreen setup is called BY main.js.
-  // In main.js: setupStartScreen is called BEFORE auto-resume check.
-  // So showStartScreen() WILL be called.
-  // Then auto-resume happens, and it hides it.
-  // This might cause a flicker.
-  // Ideally, main.js should decide whether to call setupStartScreen or just run the game.
-
-  // But to be safe and respect "everything automatic", if there is a snapshot, we could try to load it here?
-  // No, main.js logic is better for separation.
-
-  // Let's just ensure showStartScreen is called, but we know main.js will hide it immediately if save exists.
   showStartScreen();
 }
