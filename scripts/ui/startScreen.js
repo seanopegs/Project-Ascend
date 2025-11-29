@@ -45,6 +45,26 @@ function updateStatusDisplay(statusElement, snapshot) {
   }
 }
 
+function isValidSnapshot(snapshot) {
+  return !!(
+    snapshot &&
+    typeof snapshot === "object" &&
+    snapshot.worldState &&
+    typeof snapshot.worldState === "object"
+  );
+}
+
+function updateContinueButton(button, snapshot) {
+  if (!button) {
+    return;
+  }
+
+  const hasSnapshot = isValidSnapshot(snapshot);
+  button.hidden = !hasSnapshot;
+  button.toggleAttribute("disabled", !hasSnapshot);
+  button.setAttribute("aria-disabled", String(!hasSnapshot));
+}
+
 function clearMessage(messageElement) {
   if (messageElement) {
     messageElement.textContent = "";
@@ -150,6 +170,7 @@ export function setupStartScreen(controller) {
     const snapshot = refreshAutosaveInfo();
     if (!startScreen.hidden && snapshot) {
       clearMessage(messageElement);
+      focusElement(continueGameButton);
     }
   });
 
