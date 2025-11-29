@@ -5,6 +5,7 @@ import { setupSaveControls } from "./ui/saveControls.js";
 export { initializeGame };
 
 function startApp() {
+  console.log("Starting App...");
   const controller = initializeGame({ autoStart: false });
   setupSaveControls(controller);
   setupStartScreen(controller);
@@ -12,34 +13,29 @@ function startApp() {
   // Auto-resume check
   try {
     const snapshot = controller.getCachedSnapshot();
-    if (snapshot && snapshot.savedAt) {
-      // If we have a save, we can optionally auto-load it or just let the start screen handle it.
-      // The user requested "refresh page ga ngulang dari 0".
-      // Let's try to auto-load if the save is very recent (e.g. less than 24 hours) or just valid.
-      // However, usually games show the title screen.
-      // But to strictly follow "ga ngulang dari 0", maybe we can just trigger the continue button?
+    console.log("Checking for cached snapshot:", snapshot ? "Found" : "Not Found");
+    if (snapshot) {
+      console.log("Snapshot version:", snapshot.version);
+    }
 
-      // Let's modify the behavior: If there is a save, we can start the game with it.
-      // But we need to be careful not to trap the user.
-      // A better approach: The Start Screen already has "Continue".
-      // I will trust the Start Screen but ensure the "Continue" button is focused/highlighted.
-      // Or, I can actually load it.
+    if (snapshot && snapshot.savedAt && snapshot.version === 1) {
+      // The user wants the game to always save and not reset on reload.
+      // So we automatically load the snapshot if it exists.
+      console.log("Auto-loading saved session...");
+      controller.loadSnapshot(snapshot, { source: "continue" });
 
-      // Let's try to load it immediately if it's a valid session.
-      // controller.loadSnapshot(snapshot, { source: 'continue' });
-      // The StartScreen logic will hide itself if we call loadSnapshot?
-      // No, setupStartScreen creates listeners.
-
-      // Actually, if I call controller.loadSnapshot, the engine renders the scene.
-      // But the StartScreen overlay (HTML) might still be visible.
-      // I need to tell the start screen to hide.
-
-      // Simpler solution: Modify StartScreen to auto-click continue if specific condition met?
-      // No, that's hacky.
-
-      // I will leave it as is but ensure `initializeGame` doesn't wipe anything.
-      // The user might be confused if they see the "New Game" screen.
-      // I will modify styles to make "Continue" extremely obvious if available.
+      // We also need to hide the start screen programmatically
+      // since setupStartScreen defaults to showing it.
+      const startScreen = document.getElementById("startScreen");
+      const appShell = document.getElementById("appShell");
+      if (startScreen && appShell) {
+        startScreen.hidden = true;
+        document.documentElement.removeAttribute("data-start-screen");
+        appShell.removeAttribute("aria-hidden");
+        console.log("Start screen hidden, game resumed.");
+      }
+    } else {
+      console.log("No valid snapshot found. Waiting for user input on Start Screen.");
     }
   } catch (e) {
     console.warn("Auto-resume check failed:", e);
