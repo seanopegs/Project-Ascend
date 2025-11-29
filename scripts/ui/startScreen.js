@@ -27,79 +27,20 @@ function setHtmlOverlayState(visible) {
   }
 }
 
-function updateStatusDisplay(statusElement, snapshot) {
-  if (!statusElement) {
-    return;
-  }
-  if (!snapshot) {
-    statusElement.textContent =
-      "Belum ada progres tersimpan. Mulai permainan baru untuk memulai perjalananmu.";
-    return;
-  }
-  const summary = snapshot.meta?.summary || "Progres tersimpan ditemukan.";
-  const savedAt = formatSavedAt(snapshot.savedAt || snapshot.meta?.savedAt);
-  if (savedAt) {
-    statusElement.textContent = `${summary}\nTerakhir diperbarui ${savedAt}`;
-  } else {
-    statusElement.textContent = summary;
-  }
-}
+function updateStatusDisplay(statusElement, meta) {
+  if (!statusElement) return;
 
-function isValidSnapshot(snapshot) {
-  return !!(
-    snapshot &&
-    typeof snapshot === "object" &&
-    snapshot.worldState &&
-    typeof snapshot.worldState === "object"
-  );
-}
-
-function updateContinueButton(button, snapshot) {
-  if (!button) {
+  if (!meta) {
+    statusElement.textContent = "Belum ada progres tersimpan. Mulai permainan baru untuk memulai perjalananmu.";
     return;
   }
 
-  const hasSnapshot = isValidSnapshot(snapshot);
-  if (hasSnapshot) {
-    button.hidden = false;
-    button.removeAttribute("hidden");
-    button.disabled = false;
-    button.removeAttribute("disabled");
-    button.setAttribute("aria-disabled", "false");
-  } else {
-    button.hidden = true;
-    button.disabled = true;
-    button.setAttribute("aria-disabled", "true");
-  }
-}
-
-function clearMessage(messageElement) {
-  if (messageElement) {
-    messageElement.textContent = "";
-  }
-}
-
-function setMessage(messageElement, text) {
-  if (messageElement) {
-    messageElement.textContent = text;
-  }
-}
-
-function focusElement(element) {
-  if (!element || typeof element.focus !== "function") {
-    return;
-  }
-  try {
-    element.focus({ preventScroll: true });
-  } catch (error) {
-    element.focus();
-  }
+  const savedAt = formatSavedAt(meta.timestamp);
+  statusElement.textContent = `${meta.summary || "Progres tersimpan"}\nTerakhir diperbarui ${savedAt}`;
 }
 
 export function setupStartScreen(controller) {
-  if (!controller) {
-    return;
-  }
+  if (!controller) return;
 
   const startScreen = document.getElementById("startScreen");
   const appShell = document.getElementById("appShell");
@@ -108,85 +49,85 @@ export function setupStartScreen(controller) {
   const statusElement = document.getElementById("startScreenStatus");
   const messageElement = document.getElementById("startScreenMessage");
 
-  if (!startScreen || !appShell) {
-    return;
-  }
+  if (!startScreen || !appShell) return;
 
   function hideStartScreen() {
     setHtmlOverlayState(false);
     startScreen.hidden = true;
     appShell.removeAttribute("aria-hidden");
-    clearMessage(messageElement);
+    if (messageElement) messageElement.textContent = "";
   }
 
   function showStartScreen() {
     setHtmlOverlayState(true);
     startScreen.hidden = false;
     appShell.setAttribute("aria-hidden", "true");
-    if (continueGameButton && !continueGameButton.hidden) {
-      focusElement(continueGameButton);
-    } else if (newGameButton) {
-      focusElement(newGameButton);
-    }
-  }
 
-  function refreshAutosaveInfo() {
-    let snapshot = null;
-    try {
-      snapshot = controller.getCachedSnapshot?.();
-    } catch (error) {
-      console.warn("Gagal mengambil progres tersimpan.", error);
-    }
-    const validSnapshot = isValidSnapshot(snapshot) ? snapshot : null;
-    updateStatusDisplay(statusElement, validSnapshot);
-    updateContinueButton(continueGameButton, validSnapshot);
-    return validSnapshot;
-  }
+    // Check save existence
+    const meta = controller.getSaveMeta();
+    const hasSave = !!meta;
 
-  async function startNewGame() {
-    clearMessage(messageElement);
-    try {
-      controller.startNewGame?.();
-      hideStartScreen();
-    } catch (error) {
-      console.error("Gagal memulai permainan baru.", error);
-      setMessage(messageElement, "Terjadi masalah saat memulai permainan baru.");
-    }
-  }
+    updateStatusDisplay(statusElement, meta);
 
-  async function continueGame() {
-    clearMessage(messageElement);
-    try {
-      const snapshot = controller.getCachedSnapshot?.();
-      if (isValidSnapshot(snapshot)) {
-        controller.loadSnapshot?.(snapshot, { source: "continue" });
-        hideStartScreen();
+    if (continueGameButton) {
+      continueGameButton.hidden = !hasSave;
+      continueGameButton.disabled = !hasSave;
+      if (hasSave) {
+          continueGameButton.focus();
       } else {
-        setMessage(messageElement, "Tidak ada data simpanan yang ditemukan.");
-        refreshAutosaveInfo();
+          newGameButton?.focus();
       }
-    } catch (error) {
-      console.error("Gagal melanjutkan permainan.", error);
-      setMessage(messageElement, "Terjadi masalah saat melanjutkan permainan.");
     }
   }
 
   if (newGameButton) {
-    newGameButton.addEventListener("click", startNewGame);
+    newGameButton.addEventListener("click", () => {
+      try {
+        controller.startNewGame();
+        hideStartScreen();
+      } catch (error) {
+        console.error("Gagal memulai permainan baru.", error);
+        if (messageElement) messageElement.textContent = "Terjadi masalah saat memulai permainan baru.";
+      }
+    });
   }
 
   if (continueGameButton) {
-    continueGameButton.addEventListener("click", continueGame);
+    continueGameButton.addEventListener("click", () => {
+      try {
+        const success = controller.loadGame();
+        if (success) {
+          hideStartScreen();
+        } else {
+           if (messageElement) messageElement.textContent = "Gagal memuat simpanan. Data mungkin rusak.";
+           // Refresh UI
+           const meta = controller.getSaveMeta();
+           if (!meta) {
+               continueGameButton.hidden = true;
+               continueGameButton.disabled = true;
+               updateStatusDisplay(statusElement, null);
+           }
+        }
+      } catch (error) {
+        console.error("Gagal melanjutkan permainan.", error);
+        if (messageElement) messageElement.textContent = "Terjadi masalah saat melanjutkan permainan.";
+      }
+    });
   }
 
-  window.addEventListener("projectAscend:autosave", () => {
-    const snapshot = refreshAutosaveInfo();
-    if (!startScreen.hidden && snapshot) {
-      clearMessage(messageElement);
-      focusElement(continueGameButton);
-    }
+  // Update save info when autosave happens (in case user clears data in another tab, though unlikely to affect this screen while open,
+  // but if game is running and saves, and we somehow come back to start screen - rare)
+  // More useful: if we support multiple slots later.
+  window.addEventListener("projectAscend:autosave", (e) => {
+     if (!startScreen.hidden) {
+         const meta = controller.getSaveMeta(); // Or use e.detail to construct meta
+         updateStatusDisplay(statusElement, meta);
+         if (continueGameButton && meta) {
+             continueGameButton.hidden = false;
+             continueGameButton.disabled = false;
+         }
+     }
   });
 
-  const snapshot = refreshAutosaveInfo();
   showStartScreen();
 }
