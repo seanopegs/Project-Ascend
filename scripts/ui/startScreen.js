@@ -123,16 +123,12 @@ export function setupStartScreen(controller) {
   }
 
   function refreshAutosaveInfo() {
-    let snapshot = null;
-    try {
-      snapshot = controller.getCachedSnapshot?.();
-    } catch (error) {
-      console.warn("Gagal mengambil progres tersimpan.", error);
+    const snapshot = controller.getCachedSnapshot?.();
+    updateStatusDisplay(statusElement, snapshot);
+    if (continueGameButton) {
+      continueGameButton.hidden = !snapshot;
     }
-    const validSnapshot = isValidSnapshot(snapshot) ? snapshot : null;
-    updateStatusDisplay(statusElement, validSnapshot);
-    updateContinueButton(continueGameButton, validSnapshot);
-    return validSnapshot;
+    return snapshot;
   }
 
   async function startNewGame() {
@@ -150,12 +146,11 @@ export function setupStartScreen(controller) {
     clearMessage(messageElement);
     try {
       const snapshot = controller.getCachedSnapshot?.();
-      if (isValidSnapshot(snapshot)) {
+      if (snapshot) {
         controller.loadSnapshot?.(snapshot, { source: "continue" });
         hideStartScreen();
       } else {
         setMessage(messageElement, "Tidak ada data simpanan yang ditemukan.");
-        refreshAutosaveInfo();
       }
     } catch (error) {
       console.error("Gagal melanjutkan permainan.", error);
