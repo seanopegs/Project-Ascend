@@ -13,6 +13,7 @@ import { formatCurrency, formatChange } from "../util/format.js";
 import { clamp, normalizeValue } from "../util/math.js";
 import { formatTime, formatCalendarDate, formatDuration, advanceCalendarDay } from "../util/time.js";
 import { initializeThemeToggle } from "../ui/themeToggle.js";
+import { persistence } from "./persistence.js";
 
 const stats = createInitialStats();
 const allStatsMetadata = new Map();
@@ -24,17 +25,7 @@ const conditionNoteMap = new Map();
 let conditionNoteSequence = 0;
 let showInsightsInFeedback = true;
 
-const AUTOSAVE_STORAGE_KEY = "project-ascend:autosave";
-const SNAPSHOT_VERSION = 1;
-
-const STORAGE_FALLBACK_NOTICES = new Set();
-
-let cachedLocalStorage;
-let cachedSessionStorage;
-let fallbackMemoryStorage = null;
-
-let autosaveSuppressed = false;
-let cachedAutosaveSnapshot = null;
+const SNAPSHOT_VERSION = 2;
 
 let statsElement;
 let statusSummaryElement;
@@ -57,8 +48,9 @@ const ACTION_HOTKEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 const TRAVEL_HOTKEYS = Array.from('abcdefghijklmnopqrstuvwxyz');
 const choiceHotkeys = new Map();
 let hotkeyListenerAttached = false;
+let autosaveSuppressed = false;
 
-// ... [Keep existing helper functions] ...
+// ... [Helper functions] ...
 function normalizeHotkey(value) {
   return typeof value === 'string' ? value.toLowerCase() : '';
 }
@@ -285,23 +277,19 @@ export function initializeGame(options = {}) {
   updateHeaderBadges();
 
   const controller = {
-    startNewGame: (meta) => startNewSession(meta),
-    loadSnapshot: (snapshot, loadOptions) => loadSnapshotFromData(snapshot, loadOptions),
-    getSnapshot: (meta) => createSnapshot(meta),
-    getCachedSnapshot: () => getAutosaveSnapshotInternal(),
-    clearAutosave: () => clearAutosaveStorage(),
+    startNewGame: () => startNewSession(),
+    loadGame: () => loadGameFromPersistence(),
+    hasSave: () => persistence.hasSave(),
+    getSaveMeta: () => persistence.getMeta()
   };
 
-  if (options.initialSnapshot) {
-    try {
-      controller.loadSnapshot(options.initialSnapshot, { source: "initial" });
-    } catch (error) {
-      console.error("Gagal memuat snapshot awal.", error);
-      controller.startNewGame();
-    }
-  } else if (options.autoStart !== false) {
-    controller.startNewGame();
-  }
+  // If autoStart is NOT false, we don't start automatically here anymore.
+  // The main.js should decide whether to start new game or wait for user to continue.
+  // But if options.autoStart is true (or undefined), and there is no save, maybe start new game?
+  // The user requirement says "auto save using continue".
+
+  // Logic update: initializeGame just sets up the UI.
+  // Starting the game (either new or continue) is handled by the caller via controller.
 
   return controller;
 }
@@ -394,57 +382,6 @@ function createInitialWorldState() {
   };
 }
 
-function getBrowserStorageSafe(type) {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  try {
-    return window[type] || null;
-  } catch (error) {
-    const label = type === "sessionStorage" ? "penyimpanan sesi" : "penyimpanan lokal";
-    console.warn(`${label} tidak tersedia untuk simpanan otomatis.`, error);
-    return null;
-  }
-}
-
-function getLocalStorageSafe() {
-  if (cachedLocalStorage === undefined) {
-    cachedLocalStorage = getBrowserStorageSafe("localStorage");
-  }
-  return cachedLocalStorage || null;
-}
-
-function getSessionStorageSafe() {
-  if (cachedSessionStorage === undefined) {
-    cachedSessionStorage = getBrowserStorageSafe("sessionStorage");
-  }
-  return cachedSessionStorage || null;
-}
-
-function getMemoryStorage(createIfMissing = true) {
-  if (!fallbackMemoryStorage && createIfMissing) {
-    const store = new Map();
-    fallbackMemoryStorage = {
-      getItem: (key) => (store.has(key) ? store.get(key) : null),
-      setItem: (key, value) => {
-        store.set(key, String(value));
-      },
-      removeItem: (key) => {
-        store.delete(key);
-      },
-    };
-  }
-  return fallbackMemoryStorage;
-}
-
-function notifyStorageFallback(type, message) {
-  if (STORAGE_FALLBACK_NOTICES.has(type)) {
-    return;
-  }
-  console.info(message);
-  STORAGE_FALLBACK_NOTICES.add(type);
-}
-
 function deepClone(value) {
   if (value === null || typeof value !== "object") {
     return value;
@@ -453,7 +390,7 @@ function deepClone(value) {
     try {
       return structuredClone(value);
     } catch (error) {
-      // Fallback akan ditangani di bawah.
+      // Fallback
     }
   }
   try {
@@ -516,7 +453,7 @@ function restoreConditionNotes(snapshot = {}) {
   }
 }
 
-function createSnapshot(metaOverrides = {}) {
+function createSaveData() {
   const savedAt = new Date().toISOString();
   const location = locations[worldState.location];
   const summaryParts = [
@@ -524,9 +461,8 @@ function createSnapshot(metaOverrides = {}) {
     formatTime(worldState.hour, worldState.minute),
     location?.name,
   ].filter(Boolean);
+
   const meta = {
-    type: metaOverrides.type || "auto",
-    source: metaOverrides.source || "auto",
     summary: summaryParts.join(" • "),
     day: worldState.day,
     hour: worldState.hour,
@@ -534,12 +470,6 @@ function createSnapshot(metaOverrides = {}) {
     location: worldState.location,
     savedAt,
   };
-  if (metaOverrides.note) {
-    meta.note = metaOverrides.note;
-  }
-  if (metaOverrides.label) {
-    meta.label = metaOverrides.label;
-  }
 
   const snapshot = {
     version: SNAPSHOT_VERSION,
@@ -554,195 +484,52 @@ function createSnapshot(metaOverrides = {}) {
     showInsightsInFeedback,
     gameEnded,
   };
+
   if (currentEnding) {
     snapshot.currentEnding = deepClone(currentEnding);
   }
+
   return snapshot;
 }
 
-function dispatchAutosaveEvent(snapshot) {
-  if (typeof window === "undefined") {
-    return;
+function saveGame() {
+  if (autosaveSuppressed) return;
+  const data = createSaveData();
+  persistence.save(data);
+
+  // Dispatch event for UI updates
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("projectAscend:autosave", { detail: data }));
   }
+}
+
+function loadGameFromPersistence() {
+  const snapshot = persistence.load();
+  if (!snapshot) {
+    return false;
+  }
+
   try {
-    const detail = deepClone(snapshot);
-    const event =
-      typeof CustomEvent === "function"
-        ? new CustomEvent("projectAscend:autosave", { detail })
-        : null;
-    if (event) {
-      window.dispatchEvent(event);
-    }
-  } catch (error) {
-    console.warn("Gagal mengirimkan event autosave.", error);
+    loadSnapshotData(snapshot);
+    return true;
+  } catch (e) {
+    console.error("Failed to restore game state", e);
+    return false;
   }
 }
 
-function persistAutosave(metaOverrides = {}) {
-  const overrides = { source: "auto", type: "auto", ...metaOverrides };
-  const snapshot = createSnapshot(overrides);
-  let serialized = null;
-  try {
-    serialized = JSON.stringify(snapshot);
-  } catch (error) {
-    console.warn("Gagal mempersiapkan data simpanan otomatis.", error);
-  }
-
-  if (serialized) {
-    let stored = false;
-    const localStorage = getLocalStorageSafe();
-    if (localStorage) {
-      try {
-        localStorage.setItem(AUTOSAVE_STORAGE_KEY, serialized);
-        stored = true;
-      } catch (error) {
-        console.warn("Gagal menyimpan progres ke penyimpanan lokal.", error);
-      }
-    }
-
-    if (!stored) {
-      const sessionStorage = getSessionStorageSafe();
-      if (sessionStorage) {
-        try {
-          sessionStorage.setItem(AUTOSAVE_STORAGE_KEY, serialized);
-          stored = true;
-          notifyStorageFallback(
-            "session",
-            "Simpan otomatis menggunakan penyimpanan sesi karena penyimpanan lokal tidak tersedia.",
-          );
-        } catch (error) {
-          console.warn("Gagal menyimpan progres ke penyimpanan sesi.", error);
-        }
-      }
-    }
-
-    if (!stored) {
-      const memoryStorage = getMemoryStorage(true);
-      try {
-        memoryStorage.setItem(AUTOSAVE_STORAGE_KEY, serialized);
-        notifyStorageFallback(
-          "memory",
-          "Simpan otomatis sementara menggunakan memori karena penyimpanan browser tidak tersedia.",
-        );
-      } catch (error) {
-        console.warn("Gagal menyimpan progres ke penyimpanan sementara.", error);
-      }
-    }
-  }
-
-  cachedAutosaveSnapshot = snapshot;
-  dispatchAutosaveEvent(snapshot);
-  return snapshot;
-}
-
-function readAutosaveRaw(storage, label) {
-  if (!storage) {
-    return null;
-  }
-  try {
-    return storage.getItem(AUTOSAVE_STORAGE_KEY);
-  } catch (error) {
-    if (label) {
-      console.warn(`Gagal mengakses ${label} untuk simpanan otomatis.`, error);
-    } else {
-      console.warn("Gagal mengakses penyimpanan sementara untuk simpanan otomatis.", error);
-    }
-    return null;
-  }
-}
-
-function getAutosaveSnapshotInternal() {
-  if (cachedAutosaveSnapshot) {
-    return deepClone(cachedAutosaveSnapshot);
-  }
-
-  const candidates = [
-    { storage: getLocalStorageSafe(), label: "penyimpanan lokal" },
-    { storage: getSessionStorageSafe(), label: "penyimpanan sesi" },
-  ];
-
-  const memoryStorage = getMemoryStorage(false);
-  if (memoryStorage) {
-    candidates.push({ storage: memoryStorage, label: "penyimpanan sementara" });
-  }
-
-  for (const { storage, label } of candidates) {
-    const raw = readAutosaveRaw(storage, label);
-    if (!raw) {
-      continue;
-    }
-    try {
-      const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== "object") {
-        continue;
-      }
-      if (parsed.version !== SNAPSHOT_VERSION) {
-        console.warn(
-          `Versi simpanan (${parsed.version}) tidak cocok dengan versi saat ini (${SNAPSHOT_VERSION}).`,
-        );
-      }
-      cachedAutosaveSnapshot = parsed;
-      return deepClone(parsed);
-    } catch (error) {
-      console.warn(`Gagal memuat simpanan otomatis dari ${label}.`, error);
-    }
-  }
-
-  return null;
-}
-
-function clearAutosaveStorage() {
-  cachedAutosaveSnapshot = null;
-  const localStorage = getLocalStorageSafe();
-  if (localStorage) {
-    try {
-      localStorage.removeItem(AUTOSAVE_STORAGE_KEY);
-    } catch (error) {
-      console.warn("Gagal menghapus simpanan otomatis dari penyimpanan lokal.", error);
-    }
-  }
-
-  const sessionStorage = getSessionStorageSafe();
-  if (sessionStorage) {
-    try {
-      sessionStorage.removeItem(AUTOSAVE_STORAGE_KEY);
-    } catch (error) {
-      console.warn("Gagal menghapus simpanan otomatis dari penyimpanan sesi.", error);
-    }
-  }
-
-  const memoryStorage = getMemoryStorage(false);
-  if (memoryStorage) {
-    memoryStorage.removeItem(AUTOSAVE_STORAGE_KEY);
-  }
-}
-
-function withAutosaveSuppressed(callback) {
-  const previous = autosaveSuppressed;
-  autosaveSuppressed = true;
-  try {
-    return callback();
-  } finally {
-    autosaveSuppressed = previous;
-  }
-}
-
-function loadSnapshotFromData(snapshot, options = {}) {
+function loadSnapshotData(snapshot) {
   if (!snapshot || typeof snapshot !== "object") {
     throw new Error("Berkas simpanan tidak valid.");
   }
-  if (!snapshot.worldState || typeof snapshot.worldState !== "object") {
-    throw new Error("Berkas simpanan tidak memuat status permainan.");
-  }
-  if (!snapshot.stats || typeof snapshot.stats !== "object") {
-    throw new Error("Berkas simpanan tidak memuat statistik karakter.");
-  }
+
+  // Handle version migration if needed here (for now we just accept)
 
   const mergedWorld = mergeWorldState(snapshot.worldState);
-  const resumeSource = options.source || snapshot.meta?.source || "load";
-  const resumeType = options.type || "auto";
 
-  withAutosaveSuppressed(() => {
+  // Suppress autosave during loading
+  autosaveSuppressed = true;
+  try {
     worldState = mergedWorld;
     applyStatsFromSnapshot(snapshot.stats);
     restoreConditionNotes(snapshot);
@@ -750,28 +537,22 @@ function loadSnapshotFromData(snapshot, options = {}) {
     gameEnded = Boolean(snapshot.gameEnded);
     currentEnding = snapshot.currentEnding ? deepClone(snapshot.currentEnding) : null;
 
-    const narratives =
-      gameEnded || resumeSource === "continue" || resumeSource === "initial"
-        ? []
-        : [
-            resumeSource === "load-file"
-              ? "Berkas simpanan berhasil dimuat. Kamu kembali ke momen terakhir yang terekam."
-              : "Kamu melanjutkan progres terakhir yang tersimpan.",
-          ];
+    // Determine what to display
+    const narratives = ["Kamu melanjutkan permainan."];
     renderScene(narratives, []);
-  });
-
-  cachedAutosaveSnapshot = null;
-  return persistAutosave({ source: resumeSource, type: resumeType });
+  } finally {
+    autosaveSuppressed = false;
+  }
 }
 
-function startNewSession(metaOverrides = {}) {
-  cachedAutosaveSnapshot = null;
-  withAutosaveSuppressed(() => {
+function startNewSession() {
+  autosaveSuppressed = true;
+  try {
     resetGame();
-  });
-  // Force a save immediately upon starting a new session
-  return persistAutosave({ source: "new-game", type: "auto", ...metaOverrides });
+  } finally {
+    autosaveSuppressed = false;
+  }
+  saveGame();
 }
 
 function resetStats() {
@@ -805,6 +586,8 @@ function resetGame() {
     "Sudah lewat tengah malam. Rumah kecilmu sunyi, hanya terdengar napas berat Ayah dari kamar. Para penagih masih berjaga di depan pagar.";
   renderScene([introText], []);
 }
+
+// ... [Keep existing internal game logic functions like updateStatusSummary, applyEffects, etc.] ...
   function updateStatusSummary() {
     updateStatusHeading();
     updateHeaderBadges();
@@ -1558,7 +1341,7 @@ function resetGame() {
       }
     }
     if (!autosaveSuppressed) {
-      persistAutosave();
+      saveGame();
     }
   }
   function describeCollectorDeadline() {
@@ -1839,4 +1622,3 @@ function resetGame() {
     toggleStatsButton.setAttribute("aria-pressed", expanded);
     toggleStatsButton.textContent = statsPanelVisible ? "Sembunyikan Stat Karakter" : "Tampilkan Stat Karakter";
   }
-

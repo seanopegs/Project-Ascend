@@ -19,43 +19,43 @@ function formatSavedAt(value) {
   }
 }
 
-function formatStatus(snapshot) {
-  if (!snapshot) {
-    return "Belum ada simpanan otomatis.";
-  }
-  const savedAt = formatSavedAt(snapshot.savedAt || snapshot.meta?.savedAt);
-  const summary = snapshot.meta?.summary;
-  if (savedAt && summary) {
-    return `Simpan otomatis ${savedAt} • ${summary}`;
-  }
-  if (savedAt) {
-    return `Simpan otomatis ${savedAt}.`;
-  }
-  if (summary) {
-    return `Simpan otomatis: ${summary}.`;
-  }
-  return "Progres otomatis telah disimpan.";
-}
+function updateStatus(statusElement, meta) {
+  if (!statusElement) return;
 
-function updateStatus(statusElement, snapshot) {
-  if (!statusElement) {
-    return;
+  if (!meta) {
+     // Optional: Hide or show "Not saved"
+     statusElement.textContent = "";
+     return;
   }
-  statusElement.textContent = formatStatus(snapshot);
+
+  const savedAt = formatSavedAt(meta.timestamp || meta.savedAt);
+  const summary = meta.summary;
+
+  if (savedAt && summary) {
+    statusElement.textContent = `Simpan otomatis ${savedAt} • ${summary}`;
+  } else if (savedAt) {
+    statusElement.textContent = `Simpan otomatis ${savedAt}.`;
+  } else {
+    statusElement.textContent = "Progres otomatis telah disimpan.";
+  }
 }
 
 export function setupSaveControls(controller) {
-  if (!controller) {
-    return;
-  }
+  if (!controller) return;
 
   const statusElement = document.getElementById("saveStatus");
 
   if (statusElement) {
-    updateStatus(statusElement, controller.getCachedSnapshot?.());
+    updateStatus(statusElement, controller.getSaveMeta());
   }
 
   window.addEventListener("projectAscend:autosave", (event) => {
-    updateStatus(statusElement, event.detail || controller.getCachedSnapshot?.());
+    // event.detail contains the full snapshot
+    const snapshot = event.detail;
+    const meta = snapshot ? {
+        timestamp: snapshot.savedAt,
+        summary: snapshot.meta?.summary
+    } : null;
+    updateStatus(statusElement, meta);
   });
 }
